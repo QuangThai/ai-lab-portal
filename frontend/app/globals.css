@@ -1,0 +1,186 @@
+@import "tailwindcss";
+@import "./theme.css";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: var(--color-vellum-background);
+  --foreground: var(--color-inkwell-black);
+  --card: var(--color-parchment-white);
+  --card-foreground: var(--color-charcoal-black);
+  --popover: var(--color-parchment-white);
+  --popover-foreground: var(--color-charcoal-black);
+  --primary: var(--color-charcoal-black);
+  --primary-foreground: var(--color-parchment-white);
+  --secondary: var(--color-vellum-background);
+  --secondary-foreground: var(--color-charcoal-black);
+  --muted: #f0ebe2;
+  --muted-foreground: var(--color-muted-text-gray);
+  --accent: color-mix(in srgb, var(--color-story-green) 12%, var(--color-parchment-white));
+  --accent-foreground: var(--color-charcoal-black);
+  --brand: var(--color-story-green);
+  --brand-foreground: var(--color-parchment-white);
+  --destructive: #b42318;
+  --border: color-mix(in srgb, var(--color-book-text-gray) 20%, transparent);
+  --input: color-mix(in srgb, var(--color-book-text-gray) 20%, transparent);
+  --ring: var(--color-story-green);
+  --chart-1: var(--color-story-green);
+  --chart-2: var(--color-muted-text-gray);
+  --chart-3: var(--color-book-text-gray);
+  --chart-4: var(--color-charcoal-black);
+  --chart-5: var(--color-inkwell-black);
+  --radius: 1rem;
+  --radius-pill: 9999px;
+  --sidebar: var(--color-parchment-white);
+  --sidebar-foreground: var(--color-charcoal-black);
+  --sidebar-primary: var(--color-charcoal-black);
+  --sidebar-primary-foreground: var(--color-parchment-white);
+  --sidebar-accent: var(--color-vellum-background);
+  --sidebar-accent-foreground: var(--color-charcoal-black);
+  --sidebar-border: color-mix(in srgb, var(--color-book-text-gray) 20%, transparent);
+  --sidebar-ring: var(--color-story-green);
+  --panel: var(--color-parchment-white);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* Next.js <Link> + pill CTAs: inherit would mute text on bg-primary buttons */
+a.bg-primary,
+a[class*="bg-primary"] {
+  color: var(--primary-foreground);
+}
+
+@theme inline {
+  --font-sans: var(--font-sohne);
+  --font-heading: var(--font-gt-super);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand: var(--brand);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+  --radius-pill: var(--radius-pill);
+  --radius-admin-sm: var(--radius-admin-sm);
+  --radius-admin-md: var(--radius-admin-md);
+  --radius-admin-lg: var(--radius-admin-lg);
+  --radius-admin-xl: var(--radius-admin-xl);
+  --radius-admin-2xl: var(--radius-admin-2xl);
+  --radius-admin-3xl: var(--radius-admin-3xl);
+}
+
+.dark {
+  --background: var(--color-charcoal-black);
+  --foreground: var(--color-parchment-white);
+  --card: var(--color-inkwell-black);
+  --card-foreground: var(--color-parchment-white);
+  --popover: var(--color-inkwell-black);
+  --popover-foreground: var(--color-parchment-white);
+  --primary: var(--color-parchment-white);
+  --primary-foreground: var(--color-charcoal-black);
+  --secondary: #2a2a2a;
+  --secondary-foreground: var(--color-parchment-white);
+  --muted: #2a2a2a;
+  --muted-foreground: #a3a3a3;
+  --accent: #2a2a2a;
+  --accent-foreground: var(--color-parchment-white);
+  --brand: var(--color-story-green);
+  --brand-foreground: var(--color-charcoal-black);
+  --destructive: #f97066;
+  --border: rgb(255 255 255 / 12%);
+  --input: rgb(255 255 255 / 15%);
+  --ring: var(--color-story-green);
+  --sidebar: var(--color-inkwell-black);
+  --sidebar-foreground: var(--color-parchment-white);
+  --sidebar-primary: var(--color-story-green);
+  --sidebar-primary-foreground: var(--color-charcoal-black);
+  --sidebar-accent: #2a2a2a;
+  --sidebar-accent-foreground: var(--color-parchment-white);
+  --sidebar-border: rgb(255 255 255 / 12%);
+  --sidebar-ring: var(--color-story-green);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@layer base {
+  .admin-login-field:-webkit-autofill,
+  .admin-login-field:-webkit-autofill:hover,
+  .admin-login-field:-webkit-autofill:focus,
+  .admin-login-field:-webkit-autofill:active {
+    -webkit-text-fill-color: var(--foreground);
+    caret-color: var(--foreground);
+    -webkit-box-shadow: 0 0 0 1000px var(--card) inset;
+    box-shadow: 0 0 0 1000px var(--card) inset;
+    transition: background-color 99999s ease-out;
+  }
+
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    margin: 0;
+    min-height: 100%;
+    font-family: var(--font-sohne);
+  }
+
+  html {
+    @apply font-sans;
+  }
+}

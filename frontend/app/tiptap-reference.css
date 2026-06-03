@@ -1,0 +1,52 @@
+@import "tailwindcss";
+@import "./theme.css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: var(--color-vellum-background);
+  --foreground: var(--color-inkwell-black);
+  --card: var(--color-parchment-white);
+  --card-foreground: var(--color-charcoal-black);
+  --popover: var(--color-parchment-white);
+  --popover-foreground: var(--color-charcoal-black);
+  --primary: var(--color-charcoal-black);
+  --primary-foreground: var(--color-parchment-white);
+  --secondary: var(--color-vellum-background);
+  --secondary-foreground: var(--color-charcoal-black);
+  --muted: #f0ebe2;
+  --muted-foreground: var(--color-muted-text-gray);
+  --accent: color-mix(in srgb, var(--color-story-green) 12%, var(--color-parchment-white));
+  --accent-foreground: var(--color-charcoal-black);
+  --brand: var(--color-story-green);
+  --brand-foreground: var(--color-parchment-white);
+  --destructive: #b42318;
+  --border: color-mix(in srgb, var(--color-book-text-gray) 20%, transparent);
+  --input: color-mix(in srgb, var(--color-book-text-gray) 20%, transparent);
+  --ring: var(--color-story-green);
+  --radius: 1rem;
+}
+
+@theme inline {
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand: var(--brand);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+}

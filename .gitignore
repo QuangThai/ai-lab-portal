@@ -1,0 +1,33 @@
+# Harness durable layer — each project instance generates its own data.
+harness.db
+harness.db-wal
+harness.db-shm
+
+# Local environment and Python runtime artifacts.
+.env
+.env.local
+.env.*.local
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+*.egg-info/
+
+# Rust build output for harness tooling.
+target/
+dist/
+
+# Frontend dependency and build artifacts.
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+celerybeat-schedule*
+test-results/
+playwright-report/
+
+# Downloaded Harness CLI binary for installed project instances.
+scripts/bin/harness-cli
+scripts/bin/harness-cli.exe
+
+.pi

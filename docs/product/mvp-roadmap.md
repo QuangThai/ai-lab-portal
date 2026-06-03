@@ -1,0 +1,150 @@
+# AI Lab Portal MVP Roadmap
+
+## Implementation Principle
+
+Build vertical slices. Do not build every module in the specification at once.
+Each slice must have explicit data, API, security, provider behavior, and
+validation contracts before implementation.
+
+## Status Summary
+
+| MVP | Objective | Status | Stories (representative) |
+| --- | --- | --- | --- |
+| MVP 0 | Foundation | **Implemented** | US-001 |
+| MVP 1 | Manual CMS + public pages | **Implemented** | US-005–US-022 |
+| MVP 2 | AI-assisted blog | Planned | — |
+| MVP 3 | AI News (official sources) | Planned | — |
+| MVP 4 | User-submitted links | Planned | — |
+| MVP 5 | X/Twitter intelligence | Blocked | — |
+
+---
+
+## MVP 0: Foundation
+
+**Status: Implemented** (2026-06-02)
+
+Objective: create the application foundation needed by later product slices.
+
+Features:
+
+- Next.js public/admin frontend shell.
+- FastAPI backend with health endpoint and OpenAPI docs.
+- PostgreSQL connection and Alembic migration setup.
+- Redis connection.
+- Celery worker and scheduler setup.
+- Structured JSON logging.
+- Environment configuration validation.
+- Docker Compose for local development.
+
+Success criteria:
+
+- [x] Backend health endpoint returns success.
+- [x] Frontend dev server renders a base shell.
+- [x] Database migrations run from an empty database.
+- [x] Worker executes a smoke-test job.
+- [x] Secrets are loaded from environment variables and never committed.
+
+---
+
+## MVP 1: Manual AI Lab CMS and Public Pages
+
+**Status: Implemented** (2026-06-02)
+
+Objective: launch a credible AI Lab web presence before AI automation.
+
+### Delivered
+
+| Area | Routes / capability | Notes |
+| --- | --- | --- |
+| Public | `/`, `/lab`, `/showcases`, `/showcases/[slug]`, `/blog`, `/blog/[slug]` | Shared `PublicSiteShell`, shadcn theme tokens, SEO metadata (US-022) |
+| Admin CMS | `/admin`, `/admin/blog/*`, `/admin/showcases/*` | Better Auth, shadcn admin shell, Tiptap editor, pending submit states |
+| API | Blog + showcase CRUD, publish/unpublish, public read models | FastAPI + PostgreSQL + audit events |
+| Proof | Backend tests, frontend typecheck/lint/build, Playwright E2E (7 tests) | React Doctor **100/100** with no issues found at MVP 1 close (US-023) |
+
+### Deferred from original MVP 1 scope
+
+| Item | Reason |
+| --- | --- |
+| Admin **projects** CRUD | Option B in SPEC; showcases-only slice shipped first (US-021) |
+| Full **tags** model | Showcase `industry` / `use_case` fields cover MVP; dedicated tag tables later |
+| Advanced **caching** | `force-dynamic` + `no-store` fetches for correct publish visibility; CDN/SWR later |
+
+### Success criteria
+
+- [x] At least two public AI Lab articles are published manually (seed + E2E publish flow).
+- [x] At least two showcases are published (seed: Scopelytics, AI Interview System).
+- [x] Public users can view only published content (API filters + E2E).
+- [x] Admin publish/unpublish actions are authenticated and audit logged.
+
+### Close-out verification
+
+```text
+cd frontend && npx -y react-doctor@latest . --verbose
+python -m pytest backend/tests
+cd frontend && npm run test && npm run typecheck && npm run lint && npm run build && npm run test:e2e
+scripts/bin/harness-cli.exe story verify US-023
+```
+
+---
+
+## MVP 2: AI-Assisted Blog Workflow
+
+**Status: Planned** — start after MVP 1 close.
+
+Objective: add AI assistance while keeping humans in control.
+
+Features:
+
+- Blog idea creation.
+- Structured outline and draft generation.
+- Technical review and marketing review agents.
+- Claim extraction/evidence ledger.
+- Human review and approval.
+- Prompt version and AI run tracking.
+
+---
+
+## MVP 3: AI News from Official Sources
+
+**Status: Planned**
+
+Objective: prove the AI News pipeline with lower-risk sources before X/Twitter.
+
+Features:
+
+- Source management for RSS, official blogs, GitHub releases, and selected websites.
+- Scheduled crawling and raw item storage.
+- Firecrawl extraction.
+- URL canonicalization, content hashing, and deduplication.
+- AI scoring and summary generation.
+- Candidate review queue and public `/ai-news` page.
+
+---
+
+## MVP 4: User-Submitted Links
+
+**Status: Planned**
+
+Objective: allow safe user/internal team link submission.
+
+Features:
+
+- `/ai-news/submit` form.
+- URL validation, rate limiting, idempotency, and SSRF-protected async fetching.
+- Duplicate detection and AI review.
+- Human approval before publish.
+
+---
+
+## MVP 5: X/Twitter Intelligence
+
+**Status: Blocked** — entry criteria not met.
+
+Objective: add social intelligence only after provider strategy is accepted.
+
+Entry criteria:
+
+- Provider strategy chosen.
+- Source account and keyword list defined.
+- Required and nullable fields documented.
+- Rate limits, budget, provider terms, fallback behavior, and risk owner agreed.

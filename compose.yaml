@@ -1,0 +1,122 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ai_lab_portal}
+      POSTGRES_USER: ${POSTGRES_USER:-ai_lab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ai_lab_dev_password}
+    ports:
+      - "${POSTGRES_HOST_PORT:-15432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER:-ai_lab} -d $${POSTGRES_DB:-ai_lab_portal}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:8-alpine
+    ports:
+      - "${REDIS_HOST_PORT:-16379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      AI_LAB_ENVIRONMENT: ${AI_LAB_ENVIRONMENT:-development}
+      AI_LAB_APP_NAME: ${AI_LAB_APP_NAME:-AI Lab Portal API}
+      AI_LAB_SERVICE_NAME: ${AI_LAB_SERVICE_NAME:-ai-lab-portal-api}
+      AI_LAB_DATABASE_URL: ${DOCKER_AI_LAB_DATABASE_URL:-postgresql+psycopg://ai_lab:ai_lab_dev_password@postgres:5432/ai_lab_portal}
+      AI_LAB_REDIS_URL: ${DOCKER_AI_LAB_REDIS_URL:-redis://redis:6379/0}
+      AI_LAB_ADMIN_BOUNDARY_SECRET: ${AI_LAB_ADMIN_BOUNDARY_SECRET:-replace-with-shared-server-secret-at-least-32-random-characters}
+    volumes:
+      - ./backend:/app/backend
+      - ./pyproject.toml:/app/pyproject.toml
+    command: >
+      sh -c "python -m alembic -c backend/alembic.ini upgrade head &&
+             python -m uvicorn backend.app.main:create_app --factory --host 0.0.0.0 --port 8000 --reload"
+    ports:
+      - "${BACKEND_HOST_PORT:-18000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      AI_LAB_ENVIRONMENT: ${AI_LAB_ENVIRONMENT:-development}
+      AI_LAB_APP_NAME: ${AI_LAB_APP_NAME:-AI Lab Portal API}
+      AI_LAB_SERVICE_NAME: ${AI_LAB_WORKER_SERVICE_NAME:-ai-lab-portal-worker}
+      AI_LAB_DATABASE_URL: ${DOCKER_AI_LAB_DATABASE_URL:-postgresql+psycopg://ai_lab:ai_lab_dev_password@postgres:5432/ai_lab_portal}
+      AI_LAB_REDIS_URL: ${DOCKER_AI_LAB_REDIS_URL:-redis://redis:6379/0}
+    command: ["python", "-m", "celery", "-A", "backend.app.celery_app.celery_app", "worker", "--loglevel=info"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    environment:
+      AI_LAB_ENVIRONMENT: ${AI_LAB_ENVIRONMENT:-development}
+      AI_LAB_APP_NAME: ${AI_LAB_APP_NAME:-AI Lab Portal API}
+      AI_LAB_SERVICE_NAME: ${AI_LAB_SCHEDULER_SERVICE_NAME:-ai-lab-portal-scheduler}
+      AI_LAB_DATABASE_URL: ${DOCKER_AI_LAB_DATABASE_URL:-postgresql+psycopg://ai_lab:ai_lab_dev_password@postgres:5432/ai_lab_portal}
+      AI_LAB_REDIS_URL: ${DOCKER_AI_LAB_REDIS_URL:-redis://redis:6379/0}
+    command: ["python", "-m", "celery", "-A", "backend.app.celery_app.celery_app", "beat", "--loglevel=info"]
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  frontend:
+    profiles: [frontend-docker]
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      target: development
+    environment:
+      NEXT_TELEMETRY_DISABLED: ${NEXT_TELEMETRY_DISABLED:-1}
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-replace-with-at-least-32-random-characters}
+      BETTER_AUTH_URL: ${DOCKER_BETTER_AUTH_URL:-http://127.0.0.1:13000}
+      BETTER_AUTH_TRUSTED_ORIGINS: ${DOCKER_BETTER_AUTH_TRUSTED_ORIGINS:-http://127.0.0.1:13000,http://localhost:13000,http://127.0.0.1:3000}
+      BETTER_AUTH_API_KEY: ${BETTER_AUTH_API_KEY:-}
+      DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://ai_lab:ai_lab_dev_password@postgres:5432/ai_lab_portal}
+      AUTH_DATABASE_URL: ${DOCKER_AUTH_DATABASE_URL:-postgresql://ai_lab:ai_lab_dev_password@postgres:5432/ai_lab_portal}
+      ADMIN_BOUNDARY_SECRET: ${ADMIN_BOUNDARY_SECRET:-replace-with-shared-server-secret-at-least-32-random-characters}
+      BACKEND_INTERNAL_URL: ${DOCKER_BACKEND_INTERNAL_URL:-http://backend:8000}
+      NEXT_PUBLIC_SITE_URL: ${DOCKER_NEXT_PUBLIC_SITE_URL:-http://127.0.0.1:13000}
+      # Admin seed
+      ALLOW_ADMIN_SEED: ${ALLOW_ADMIN_SEED:-0}
+      E2E_ADMIN_EMAIL: ${E2E_ADMIN_EMAIL:-admin@example.com}
+      E2E_ADMIN_PASSWORD: ${E2E_ADMIN_PASSWORD:-test-admin-password-123456}
+      E2E_ADMIN_NAME: ${E2E_ADMIN_NAME:-AI Lab Admin}
+    entrypoint: ["sh", "scripts/docker-entrypoint.sh"]
+    ports:
+      - "${FRONTEND_HOST_PORT:-13000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
