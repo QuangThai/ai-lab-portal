@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { PublicIndexEntry } from "@/components/public/public-index-entry";
 import { PublicIndexList } from "@/components/public/public-index-list";
 import { PublicPageHero } from "@/components/public/public-page-hero";
@@ -26,6 +27,14 @@ export default async function AiNewsIndexPage() {
           eyebrow="AI News"
           title="Human-reviewed AI intelligence."
         />
+
+        <p className="-mt-8 text-sm text-muted-foreground">
+          Have a link worth reviewing?{" "}
+          <Link className="underline underline-offset-4" href="/ai-news/submit">
+            Submit AI news
+          </Link>
+          .
+        </p>
 
         <PublicIndexList
           emptyDescription="Published AI news will appear here after an editor approves and publishes a candidate."

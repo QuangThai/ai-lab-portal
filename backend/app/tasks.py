@@ -17,6 +17,7 @@ from backend.app.llm.schemas import TechnicalReview
 from backend.app.news_crawl import run_crawl_due_rss_sources, run_rss_crawl
 from backend.app.news_extraction import run_extract_pending_raw_items, run_extract_raw_item
 from backend.app.news_scoring import run_score_extracted_article, run_score_pending_extractions
+from backend.app.news_submitted_links import run_process_submitted_link
 from backend.app.task_support import (
     article_extractor,
     extracted_article_repository,
@@ -26,6 +27,7 @@ from backend.app.task_support import (
     news_raw_item_repository,
     news_review_repository,
     news_source_repository,
+    submitted_link_repository,
     track_job_lifecycle,
 )
 
@@ -326,3 +328,13 @@ def score_pending_extractions_task(source_id: str | None = None) -> list[dict]:
         source_id=source_id,
     )
     return [r.model_dump() for r in results]
+
+
+@celery_app.task(name="news.process_submitted_link")
+def process_submitted_link_task(submission_id: str) -> dict:
+    row = run_process_submitted_link(
+        submission_id,
+        repository=submitted_link_repository(),
+        extracted=extracted_article_repository(),
+    )
+    return row.model_dump()

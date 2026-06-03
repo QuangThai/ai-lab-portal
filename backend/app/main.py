@@ -22,6 +22,13 @@ from backend.app.news_publish import (
     list_public_ai_news,
 )
 from backend.app.news_scoring import InMemoryNewsReviewRepository, NewsReviewRepository, PostgresNewsReviewRepository, create_news_review_routes
+from backend.app.news_submitted_links import (
+    InMemorySubmittedLinkRepository,
+    PostgresSubmittedLinkRepository,
+    SubmittedLinkRepository,
+    create_public_submitted_link_route,
+    create_submitted_link_routes,
+)
 from backend.app.news_sources import NewsSourceRepository, PostgresNewsSourceRepository, create_news_source_routes
 from backend.app.blog import (
     AdminBlogPostDetail,
@@ -72,6 +79,7 @@ def create_app(
     news_raw_item_repository: NewsRawItemRepository | None = None,
     extracted_article_repository: ExtractedArticleRepository | None = None,
     news_review_repository: NewsReviewRepository | None = None,
+    submitted_link_repository: SubmittedLinkRepository | None = None,
 ) -> FastAPI:
     resolved_settings = settings or get_settings()
     if resolved_settings.environment == "test":
@@ -85,6 +93,7 @@ def create_app(
         news_raw_repo = news_raw_item_repository or NewsRawItemRepository()
         extracted_repo = extracted_article_repository or ExtractedArticleRepository()
         review_repo = news_review_repository or InMemoryNewsReviewRepository()
+        submitted_repo = submitted_link_repository or InMemorySubmittedLinkRepository()
     else:
         engine = create_database_engine(resolved_settings)
         repository = blog_repository or PostgresBlogRepository(engine)
@@ -97,6 +106,7 @@ def create_app(
         news_raw_repo = news_raw_item_repository or PostgresNewsRawItemRepository(engine)
         extracted_repo = extracted_article_repository or PostgresExtractedArticleRepository(engine)
         review_repo = news_review_repository or PostgresNewsReviewRepository(engine)
+        submitted_repo = submitted_link_repository or PostgresSubmittedLinkRepository(engine)
 
     app = FastAPI(title=resolved_settings.app_name)
     app.state.settings = resolved_settings
@@ -134,8 +144,14 @@ def create_app(
     crawl_enqueue = None
     extract_enqueue = None
     rescore_enqueue = None
+    process_submission_enqueue = None
     if resolved_settings.environment != "test":
-        from backend.app.tasks import crawl_rss_source_task, extract_raw_item_task, score_extracted_article_task
+        from backend.app.tasks import (
+            crawl_rss_source_task,
+            extract_raw_item_task,
+            process_submitted_link_task,
+            score_extracted_article_task,
+        )
 
         def crawl_enqueue(source_id: str) -> str:
             return crawl_rss_source_task.delay(source_id).id
@@ -145,6 +161,9 @@ def create_app(
 
         def rescore_enqueue(extracted_article_id: str) -> str:
             return score_extracted_article_task.delay(extracted_article_id).id
+
+        def process_submission_enqueue(submission_id: str) -> str:
+            return process_submitted_link_task.delay(submission_id).id
 
     app.include_router(
         create_news_source_routes(
@@ -165,6 +184,20 @@ def create_app(
             raw_items_repository=news_raw_repo,
             sources_repository=news_sources_repo,
             enqueue_rescore=rescore_enqueue,
+        )
+    )
+    app.include_router(
+        create_submitted_link_routes(
+            submitted_repo,
+            resolved_settings,
+            extracted_repository=extracted_repo,
+            enqueue_process=process_submission_enqueue,
+        )
+    )
+    app.include_router(
+        create_public_submitted_link_route(
+            submitted_repo,
+            enqueue_process=process_submission_enqueue,
         )
     )
 

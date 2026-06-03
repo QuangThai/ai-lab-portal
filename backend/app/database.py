@@ -248,3 +248,23 @@ news_review_items = Table(
     Index("ix_news_review_items_final_score", "final_publish_score"),
     Index("ix_news_review_items_slug", "slug"),
 )
+
+news_submitted_links = Table(
+    "news_submitted_links",
+    metadata,
+    Column("id", String(64), primary_key=True),
+    Column("url", String(1024), nullable=False),
+    Column("url_normalized", String(1024), nullable=False),
+    Column("submitter_name", String(160), nullable=True),
+    Column("submitter_email", String(320), nullable=True),
+    Column("note", Text, nullable=True),
+    Column("suggested_category", String(160), nullable=True),
+    Column("rate_limit_key", String(128), nullable=False),
+    Column("status", String(32), nullable=False),
+    Column("processing_error", Text, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("url_normalized", name="uq_news_submitted_links_url_normalized"),
+    Index("ix_news_submitted_links_status", "status"),
+    Index("ix_news_submitted_links_rate_key", "rate_limit_key"),
+)

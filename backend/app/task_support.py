@@ -23,6 +23,11 @@ from backend.app.news_scoring import (
     PostgresNewsReviewRepository,
     NewsReviewRepository,
 )
+from backend.app.news_submitted_links import (
+    InMemorySubmittedLinkRepository,
+    PostgresSubmittedLinkRepository,
+    SubmittedLinkRepository,
+)
 from backend.app.settings import Settings
 
 
@@ -58,6 +63,13 @@ def news_review_repository(settings: Settings | None = None) -> NewsReviewReposi
     if resolved.environment == "test":
         return InMemoryNewsReviewRepository()
     return PostgresNewsReviewRepository(create_database_engine(resolved))
+
+
+def submitted_link_repository(settings: Settings | None = None) -> SubmittedLinkRepository:
+    resolved = settings or Settings()
+    if resolved.environment == "test":
+        return InMemorySubmittedLinkRepository()
+    return PostgresSubmittedLinkRepository(create_database_engine(resolved))
 
 
 def idea_repository(settings: Settings | None = None) -> BlogIdeaRepository:
