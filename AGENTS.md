@@ -23,3 +23,9 @@ After work, record a trace with `scripts/bin/harness-cli trace`. For
 and use `harness_friction: none` unless something changed. See
 `docs/TRACE_SPEC.md` (recurring friction deduplication).
 <!-- HARNESS:END -->
+
+## Tools RULES:
+- Always use `srcwalk` skill: for best codebase/files/dirs exploration, discover, searching.
+- Always prefer `srcwalk` CLI over read/glob/grep tool.
+- Prefer `fd` over `find`.
+- Prefer `rg` over `grep`.
