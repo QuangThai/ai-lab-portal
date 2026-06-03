@@ -31,6 +31,7 @@ Maps MVP 1 product behavior to proof layers. Update when story contracts change.
 | US-038 | Article extraction from raw news items | yes | yes | no | no | implemented | `backend/tests/test_news_extraction.py` |
 | US-039 | URL canonicalization + exact deduplication | yes | yes | no | no | implemented | `backend/tests/test_news_dedup.py` |
 | US-040 | Heuristic scoring + review queue | yes | yes | no | no | implemented | `backend/tests/test_news_scoring.py` |
+| US-041 | Public `/ai-news` feed | yes | yes | yes | no | implemented | `backend/tests/test_news_publish.py` |
 
 ## Evidence Rules
 

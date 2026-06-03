@@ -15,6 +15,12 @@ from backend.app.blog_ideas import BlogIdeaRepository, PostgresBlogIdeaRepositor
 from backend.app.generation_jobs import GenerationJobRepository, PostgresGenerationJobRepository
 from backend.app.news_crawl import NewsRawItemRepository, PostgresNewsRawItemRepository
 from backend.app.news_extraction import ExtractedArticleRepository, PostgresExtractedArticleRepository
+from backend.app.news_publish import (
+    PublicAiNewsDetail,
+    PublicAiNewsSummary,
+    get_public_ai_news_by_slug,
+    list_public_ai_news,
+)
 from backend.app.news_scoring import InMemoryNewsReviewRepository, NewsReviewRepository, PostgresNewsReviewRepository, create_news_review_routes
 from backend.app.news_sources import NewsSourceRepository, PostgresNewsSourceRepository, create_news_source_routes
 from backend.app.blog import (
@@ -327,6 +333,26 @@ def create_app(
         item = showcases_repo.get_published_by_slug(slug)
         if item is None:
             raise HTTPException(status_code=404, detail="Published showcase not found")
+        return item
+
+    @app.get("/public/ai-news")
+    async def public_ai_news() -> list[PublicAiNewsSummary]:
+        return list_public_ai_news(
+            review=review_repo,
+            extracted=extracted_repo,
+            sources=news_sources_repo,
+        )
+
+    @app.get("/public/ai-news/{slug}")
+    async def public_ai_news_item(slug: str) -> PublicAiNewsDetail:
+        item = get_public_ai_news_by_slug(
+            slug,
+            review=review_repo,
+            extracted=extracted_repo,
+            sources=news_sources_repo,
+        )
+        if item is None:
+            raise HTTPException(status_code=404, detail="Published AI news item not found")
         return item
 
     return app

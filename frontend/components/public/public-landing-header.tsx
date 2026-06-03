@@ -16,6 +16,7 @@ const navItems = [
   { href: "/lab", label: "AI Lab" },
   { href: "/showcases", label: "Showcases" },
   { href: "/blog", label: "Blog" },
+  { href: "/ai-news", label: "AI News" },
 ] as const;
 
 type PublicLandingHeaderProps = {

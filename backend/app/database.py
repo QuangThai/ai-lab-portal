@@ -239,9 +239,12 @@ news_review_items = Table(
     Column("review_notes", Text, nullable=True),
     Column("scored_at", DateTime(timezone=True), nullable=False),
     Column("reviewed_at", DateTime(timezone=True), nullable=True),
+    Column("slug", String(160), nullable=True, unique=True),
+    Column("published_at", DateTime(timezone=True), nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     UniqueConstraint("extracted_article_id", name="uq_news_review_items_extracted"),
     Index("ix_news_review_items_status", "review_status"),
     Index("ix_news_review_items_final_score", "final_publish_score"),
+    Index("ix_news_review_items_slug", "slug"),
 )

@@ -26,7 +26,7 @@ from backend.app.news_extraction import ExtractedArticle, ExtractedArticleReposi
 from backend.app.news_sources import NewsSource, NewsSourceRepository
 from backend.app.settings import Settings
 
-ReviewStatus = Literal["candidate", "approved", "rejected", "low_score", "skipped"]
+ReviewStatus = Literal["candidate", "approved", "rejected", "low_score", "skipped", "published"]
 SCORER_VERSION = "heuristic_v1"
 DEFAULT_REVIEW_THRESHOLD = 0.55
 
@@ -100,6 +100,8 @@ class NewsReviewItem(BaseModel):
     review_notes: str | None = None
     scored_at: datetime
     reviewed_at: datetime | None = None
+    slug: str | None = None
+    published_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -240,6 +242,22 @@ class NewsReviewRepository(ABC):
     ) -> NewsReviewItem | None:
         ...
 
+    @abstractmethod
+    def publish(self, review_id: str, *, slug: str) -> NewsReviewItem | None:
+        ...
+
+    @abstractmethod
+    def unpublish(self, review_id: str) -> NewsReviewItem | None:
+        ...
+
+    @abstractmethod
+    def list_published(self, *, limit: int = 100) -> list[NewsReviewItem]:
+        ...
+
+    @abstractmethod
+    def get_by_slug(self, slug: str) -> NewsReviewItem | None:
+        ...
+
 
 class InMemoryNewsReviewRepository(NewsReviewRepository):
     def __init__(self) -> None:
@@ -294,7 +312,9 @@ class InMemoryNewsReviewRepository(NewsReviewRepository):
             "review_status": review_status,
             "review_notes": None,
             "scored_at": now,
-            "reviewed_at": None,
+            "reviewed_at": existing.reviewed_at if existing else None,
+            "slug": existing.slug if existing else None,
+            "published_at": existing.published_at if existing else None,
             "created_at": existing.created_at if existing else now,
             "updated_at": now,
         }
@@ -326,6 +346,52 @@ class InMemoryNewsReviewRepository(NewsReviewRepository):
         )
         self._rows[review_id] = updated
         return updated
+
+    def publish(self, review_id: str, *, slug: str) -> NewsReviewItem | None:
+        row = self._rows.get(review_id)
+        if row is None or row.review_status != "approved":
+            return None
+        now = datetime.now(UTC)
+        updated = row.model_copy(
+            update={
+                "review_status": "published",
+                "slug": slug,
+                "published_at": now,
+                "updated_at": now,
+            }
+        )
+        self._rows[review_id] = updated
+        return updated
+
+    def unpublish(self, review_id: str) -> NewsReviewItem | None:
+        row = self._rows.get(review_id)
+        if row is None or row.review_status != "published":
+            return None
+        now = datetime.now(UTC)
+        updated = row.model_copy(
+            update={
+                "review_status": "approved",
+                "published_at": None,
+                "updated_at": now,
+            }
+        )
+        self._rows[review_id] = updated
+        return updated
+
+    def list_published(self, *, limit: int = 100) -> list[NewsReviewItem]:
+        rows = [
+            row
+            for row in self._rows.values()
+            if row.review_status == "published" and row.published_at is not None and row.slug
+        ]
+        rows.sort(key=lambda row: row.published_at or datetime.min.replace(tzinfo=UTC), reverse=True)
+        return rows[:limit]
+
+    def get_by_slug(self, slug: str) -> NewsReviewItem | None:
+        for row in self._rows.values():
+            if row.slug == slug and row.review_status == "published":
+                return row
+        return None
 
 
 class PostgresNewsReviewRepository(NewsReviewRepository):
@@ -400,7 +466,9 @@ class PostgresNewsReviewRepository(NewsReviewRepository):
             "review_status": review_status,
             "review_notes": None,
             "scored_at": now,
-            "reviewed_at": None,
+            "reviewed_at": existing.reviewed_at if existing else None,
+            "slug": existing.slug if existing else None,
+            "published_at": existing.published_at if existing else None,
             "created_at": existing.created_at if existing else now,
             "updated_at": now,
         }
@@ -435,6 +503,68 @@ class PostgresNewsReviewRepository(NewsReviewRepository):
                 )
             )
         return self.get_by_id(review_id)
+
+    def publish(self, review_id: str, *, slug: str) -> NewsReviewItem | None:
+        row = self.get_by_id(review_id)
+        if row is None or row.review_status != "approved":
+            return None
+        now = datetime.now(UTC)
+        with self._engine.begin() as conn:
+            conn.execute(
+                update(review_table)
+                .where(review_table.c.id == review_id)
+                .values(
+                    review_status="published",
+                    slug=slug,
+                    published_at=now,
+                    updated_at=now,
+                )
+            )
+        return self.get_by_id(review_id)
+
+    def unpublish(self, review_id: str) -> NewsReviewItem | None:
+        row = self.get_by_id(review_id)
+        if row is None or row.review_status != "published":
+            return None
+        now = datetime.now(UTC)
+        with self._engine.begin() as conn:
+            conn.execute(
+                update(review_table)
+                .where(review_table.c.id == review_id)
+                .values(
+                    review_status="approved",
+                    published_at=None,
+                    updated_at=now,
+                )
+            )
+        return self.get_by_id(review_id)
+
+    def list_published(self, *, limit: int = 100) -> list[NewsReviewItem]:
+        stmt = (
+            select(review_table)
+            .where(review_table.c.review_status == "published")
+            .order_by(review_table.c.published_at.desc())
+            .limit(limit)
+        )
+        with self._engine.connect() as conn:
+            rows = conn.execute(stmt).mappings().all()
+            return [NewsReviewItem(**dict(row)) for row in rows]
+
+    def get_by_slug(self, slug: str) -> NewsReviewItem | None:
+        with self._engine.connect() as conn:
+            row = (
+                conn.execute(
+                    select(review_table).where(
+                        review_table.c.slug == slug,
+                        review_table.c.review_status == "published",
+                    )
+                )
+                .mappings()
+                .one_or_none()
+            )
+            if row is None:
+                return None
+            return NewsReviewItem(**dict(row))
 
 
 def run_score_extracted_article(
@@ -589,6 +719,30 @@ def create_news_review_routes(
             raise HTTPException(status_code=404, detail="Review item not found")
         assert row.reviewed_at is not None
         return ReviewDecision(id=row.id, review_status=row.review_status, reviewed_at=row.reviewed_at)
+
+    @router.post("/{review_id}/publish")
+    async def publish_review_item(
+        review_id: str,
+        _identity: AdminIdentity = Depends(require_identity),
+    ):
+        from backend.app.news_publish import run_publish_review_item
+
+        try:
+            return run_publish_review_item(review_id, review=review_repository)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    @router.post("/{review_id}/unpublish")
+    async def unpublish_review_item(
+        review_id: str,
+        _identity: AdminIdentity = Depends(require_identity),
+    ):
+        from backend.app.news_publish import run_unpublish_review_item
+
+        try:
+            return run_unpublish_review_item(review_id, review=review_repository)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     @router.post("/{review_id}/rescore")
     async def rescore_review_item(
