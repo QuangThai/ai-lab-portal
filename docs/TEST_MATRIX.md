@@ -22,6 +22,7 @@ Maps MVP 1 product behavior to proof layers. Update when story contracts change.
 | US-021 | Showcases API + public/admin + `/lab` | yes | yes | yes | no | implemented | `test_showcase_public.py`, `test_admin_showcase.py`, E2E showcase/lab |
 | US-022 | Public shell polish, SEO metadata, theme tokens | no | no | yes | no | implemented | E2E home nav, `createPublicMetadata` |
 | US-023 | MVP 1 close-out, React Doctor, roadmap status | no | no | yes | no | implemented | React Doctor 100/100, `mvp-roadmap.md` |
+| US-032 | Publish approved blog idea to CMS blog post | yes | yes | no | no | implemented | `backend/tests/test_blog_publish.py` |
 
 ## Evidence Rules
 

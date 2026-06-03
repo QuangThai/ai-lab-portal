@@ -1,45 +1,32 @@
-"""Celery tasks for the AI Lab Portal.
+"""Celery tasks for the AI Lab Portal."""
 
-Tasks defined here are auto-discovered by ``celery_app`` via the
-``include=["backend.app.tasks"]`` config.
-"""
+from __future__ import annotations
 
 import json
 
 from backend.app.blog_ideas import (
     BlogIdeaCreate,
-    BlogIdeaRepository,
     OutlineSection,
-    PostgresBlogIdeaRepository,
 )
 from backend.app.celery_app import celery_app
-from backend.app.database import create_database_engine
 from backend.app.llm.schemas import BlogDraft
 from backend.app.llm.schemas import BlogIdea as BlogIdeaSchema
 from backend.app.llm.schemas import BlogOutline
 from backend.app.llm.schemas import MarketingMetadata
 from backend.app.llm.schemas import TechnicalReview
-from backend.app.llm.service import OpenAILLMService
-from backend.app.settings import Settings
+from backend.app.task_support import (
+    generation_job_repository,
+    idea_repository,
+    llm_service_for_idea,
+    track_job_lifecycle,
+)
 
 
-def _llm_service() -> OpenAILLMService:
-    settings = Settings()
-    api_key = settings.llm_openai_api_key.get_secret_value()
-    if not api_key:
-        raise RuntimeError(
-            "AI_LAB_LLM_OPENAI_API_KEY is not set. "
-            "Add it to .env or the process environment."
-        )
-    return OpenAILLMService(api_key=api_key, model=settings.llm_model)
-
-
-def _repository() -> BlogIdeaRepository:
-    settings = Settings()
-    if settings.environment == "test":
-        return BlogIdeaRepository()
-    engine = create_database_engine(settings)
-    return PostgresBlogIdeaRepository(engine)
+def _finish_job(task, jobs, exc: Exception | None = None) -> None:
+    if exc is None:
+        jobs.mark_completed(task.request.id)
+    else:
+        jobs.mark_failed(task.request.id, str(exc))
 
 
 @celery_app.task(name="foundation.smoke")
@@ -56,9 +43,9 @@ def generate_blog_idea_task(
     technical_highlights: str = "",
     business_value: str = "",
 ) -> dict:
-    """Generate a blog idea from project context using the LLM service."""
-    service = _llm_service()
+    jobs = track_job_lifecycle(self)
     try:
+        service = llm_service_for_idea(self.request.id)
         result = service.generate(
             "blog_idea",
             inputs={
@@ -70,50 +57,44 @@ def generate_blog_idea_task(
             },
             output_schema=BlogIdeaSchema,
         )
+        repo = idea_repository()
+        idea = repo.add_generated(
+            BlogIdeaCreate(
+                title=result.title,
+                angle=result.angle,
+                target_reader=result.target_reader,
+                article_goal=result.article_goal,
+                positioning_notes=result.positioning_notes,
+            ),
+            context={
+                "project_name": project_name,
+                "project_summary": project_summary,
+            },
+        )
+        payload = idea.model_dump()
+        _finish_job(self, jobs)
+        return payload
     except Exception as exc:
+        _finish_job(self, jobs, exc)
         raise self.retry(exc=exc)
-
-    # Store in repository
-    repo = _repository()
-    idea = repo.add_generated(
-        BlogIdeaCreate(
-            title=result.title,
-            angle=result.angle,
-            target_reader=result.target_reader,
-            article_goal=result.article_goal,
-            positioning_notes=result.positioning_notes,
-        ),
-        context={
-            "project_name": project_name,
-            "project_summary": project_summary,
-        },
-    )
-    return idea.model_dump()
 
 
 @celery_app.task(name="blog_ideas.generate_outline", bind=True, max_retries=2)
-def generate_blog_outline_task(
-    self,
-    idea_id: str,
-) -> dict:
-    """Generate an outline for an approved blog idea.
-
-    Fetches the idea from the repository, calls the LLM service with the
-    ``blog_outline`` prompt, and stores the result back.
-    """
-    repo = _repository()
+def generate_blog_outline_task(self, idea_id: str) -> dict:
+    jobs = track_job_lifecycle(self)
+    repo = idea_repository()
     idea = repo.get_by_id(idea_id)
     if idea is None:
+        _finish_job(self, jobs, ValueError(f"Blog idea {idea_id} not found"))
         raise ValueError(f"Blog idea {idea_id} not found")
     if idea.status != "approved":
-        raise ValueError(f"Blog idea {idea_id} is not approved (status={idea.status})")
+        err = ValueError(f"Blog idea {idea_id} is not approved (status={idea.status})")
+        _finish_job(self, jobs, err)
+        raise err
 
-    positioning_text = (
-        ", ".join(idea.positioning_notes) if idea.positioning_notes else ""
-    )
-
-    service = _llm_service()
+    positioning_text = ", ".join(idea.positioning_notes) if idea.positioning_notes else ""
     try:
+        service = llm_service_for_idea(idea_id)
         result = service.generate(
             "blog_outline",
             inputs={
@@ -125,37 +106,32 @@ def generate_blog_outline_task(
             },
             output_schema=BlogOutline,
         )
+        sections = [OutlineSection(section=s.section, points=s.points) for s in result.outline]
+        updated = repo.set_outline(idea_id, sections, status="pending")
+        if updated is None:
+            raise RuntimeError(f"Failed to store outline for idea {idea_id}")
+        _finish_job(self, jobs)
+        return updated.model_dump()
     except Exception as exc:
+        _finish_job(self, jobs, exc)
         raise self.retry(exc=exc)
-
-    sections = [
-        OutlineSection(section=s.section, points=s.points)
-        for s in result.outline
-    ]
-    updated = repo.set_outline(idea_id, sections, status="pending")
-    if updated is None:
-        raise RuntimeError(f"Failed to store outline for idea {idea_id}")
-
-    return updated.model_dump()
 
 
 @celery_app.task(name="blog_ideas.generate_draft", bind=True, max_retries=2)
-def generate_blog_draft_task(
-    self,
-    idea_id: str,
-) -> dict:
-    """Generate a full markdown draft from an approved outline."""
-    repo = _repository()
+def generate_blog_draft_task(self, idea_id: str) -> dict:
+    jobs = track_job_lifecycle(self)
+    repo = idea_repository()
     idea = repo.get_by_id(idea_id)
     if idea is None:
+        _finish_job(self, jobs, ValueError(f"Blog idea {idea_id} not found"))
         raise ValueError(f"Blog idea {idea_id} not found")
     if idea.outline_status != "approved":
-        raise ValueError(
-            f"Blog idea {idea_id} outline is not approved "
-            f"(status={idea.outline_status})"
+        err = ValueError(
+            f"Blog idea {idea_id} outline is not approved (status={idea.outline_status})"
         )
+        _finish_job(self, jobs, err)
+        raise err
 
-    # Build project context summary
     context_parts = [
         f"Title: {idea.title}",
         f"Angle: {idea.angle}",
@@ -163,24 +139,16 @@ def generate_blog_draft_task(
         f"Article goal: {idea.article_goal}",
     ]
     if idea.positioning_notes:
-        context_parts.append(
-            f"Positioning notes: {', '.join(idea.positioning_notes)}"
-        )
+        context_parts.append(f"Positioning notes: {', '.join(idea.positioning_notes)}")
     project_context = "\n".join(context_parts)
-
     outline_json = json.dumps(
-        [
-            {"section": s.section, "points": s.points}
-            for s in idea.outline_sections
-        ],
+        [{"section": s.section, "points": s.points} for s in idea.outline_sections],
         indent=2,
     )
-    positioning = (
-        ", ".join(idea.positioning_notes) if idea.positioning_notes else "N/A"
-    )
+    positioning = ", ".join(idea.positioning_notes) if idea.positioning_notes else "N/A"
 
-    service = _llm_service()
     try:
+        service = llm_service_for_idea(idea_id)
         result = service.generate(
             "draft_writer",
             inputs={
@@ -190,31 +158,30 @@ def generate_blog_draft_task(
             },
             output_schema=BlogDraft,
         )
+        updated = repo.set_draft(idea_id, result.markdown, status="pending")
+        if updated is None:
+            raise RuntimeError(f"Failed to store draft for idea {idea_id}")
+        _finish_job(self, jobs)
+        return updated.model_dump()
     except Exception as exc:
+        _finish_job(self, jobs, exc)
         raise self.retry(exc=exc)
-
-    updated = repo.set_draft(idea_id, result.markdown, status="pending")
-    if updated is None:
-        raise RuntimeError(f"Failed to store draft for idea {idea_id}")
-
-    return updated.model_dump()
 
 
 @celery_app.task(name="blog_ideas.review_technical", bind=True, max_retries=2)
-def generate_technical_review_task(
-    self,
-    idea_id: str,
-) -> dict:
-    """Run AI technical review on an approved draft."""
-    repo = _repository()
+def generate_technical_review_task(self, idea_id: str) -> dict:
+    jobs = track_job_lifecycle(self)
+    repo = idea_repository()
     idea = repo.get_by_id(idea_id)
     if idea is None:
+        _finish_job(self, jobs, ValueError(f"Blog idea {idea_id} not found"))
         raise ValueError(f"Blog idea {idea_id} not found")
     if idea.draft_status != "approved":
-        raise ValueError(
-            f"Blog idea {idea_id} draft is not approved "
-            f"(status={idea.draft_status})"
+        err = ValueError(
+            f"Blog idea {idea_id} draft is not approved (status={idea.draft_status})"
         )
+        _finish_job(self, jobs, err)
+        raise err
 
     project_context_parts = [
         f"Title: {idea.title}",
@@ -228,8 +195,8 @@ def generate_technical_review_task(
         )
     project_context = "\n".join(project_context_parts)
 
-    service = _llm_service()
     try:
+        service = llm_service_for_idea(idea_id)
         result = service.generate(
             "technical_review",
             inputs={
@@ -238,35 +205,33 @@ def generate_technical_review_task(
             },
             output_schema=TechnicalReview,
         )
+        updated = repo.set_technical_review(idea_id, result.model_dump(), status="pending")
+        if updated is None:
+            raise RuntimeError(f"Failed to store technical review for idea {idea_id}")
+        _finish_job(self, jobs)
+        return updated.model_dump()
     except Exception as exc:
+        _finish_job(self, jobs, exc)
         raise self.retry(exc=exc)
-
-    review_data = result.model_dump()
-    updated = repo.set_technical_review(idea_id, review_data, status="pending")
-    if updated is None:
-        raise RuntimeError(f"Failed to store technical review for idea {idea_id}")
-
-    return updated.model_dump()
 
 
 @celery_app.task(name="blog_ideas.generate_marketing", bind=True, max_retries=2)
-def generate_marketing_metadata_task(
-    self,
-    idea_id: str,
-) -> dict:
-    """Generate SEO metadata and social snippets from an approved draft."""
-    repo = _repository()
+def generate_marketing_metadata_task(self, idea_id: str) -> dict:
+    jobs = track_job_lifecycle(self)
+    repo = idea_repository()
     idea = repo.get_by_id(idea_id)
     if idea is None:
+        _finish_job(self, jobs, ValueError(f"Blog idea {idea_id} not found"))
         raise ValueError(f"Blog idea {idea_id} not found")
     if idea.draft_status != "approved":
-        raise ValueError(
-            f"Blog idea {idea_id} draft is not approved "
-            f"(status={idea.draft_status})"
+        err = ValueError(
+            f"Blog idea {idea_id} draft is not approved (status={idea.draft_status})"
         )
+        _finish_job(self, jobs, err)
+        raise err
 
-    service = _llm_service()
     try:
+        service = llm_service_for_idea(idea_id)
         result = service.generate(
             "marketing_metadata",
             inputs={
@@ -277,14 +242,13 @@ def generate_marketing_metadata_task(
             },
             output_schema=MarketingMetadata,
         )
+        updated = repo.set_marketing_metadata(idea_id, result.model_dump(), status="pending")
+        if updated is None:
+            raise RuntimeError(
+                f"Failed to store marketing metadata for idea {idea_id}"
+            )
+        _finish_job(self, jobs)
+        return updated.model_dump()
     except Exception as exc:
+        _finish_job(self, jobs, exc)
         raise self.retry(exc=exc)
-
-    metadata_data = result.model_dump()
-    updated = repo.set_marketing_metadata(idea_id, metadata_data, status="pending")
-    if updated is None:
-        raise RuntimeError(
-            f"Failed to store marketing metadata for idea {idea_id}"
-        )
-
-    return updated.model_dump()

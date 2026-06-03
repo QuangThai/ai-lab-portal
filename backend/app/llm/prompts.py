@@ -24,10 +24,12 @@ class PromptTemplate(BaseModel):
             behavioral constraints.
         user_template: Template string with ``{placeholder}`` markers that
             will be filled by the caller.
+        version: Registry version recorded on each AI run.
     """
 
     system: str
     user_template: str
+    version: str = "1"
 
 
 # ---------------------------------------------------------------------------
@@ -160,10 +162,26 @@ MARKETING_META_PROMPT = PromptTemplate(
 # Registry
 # ---------------------------------------------------------------------------
 
+CLAIM_EXTRACTION_PROMPT = PromptTemplate(
+    system=(
+        "You extract factual claims from a B2B blog draft. "
+        "Flag quantified metrics, performance comparisons, and product capability claims "
+        "that would need evidence before publishing."
+    ),
+    user_template=(
+        "Extract notable claims from this draft. "
+        "Mark requires_evidence=true for numbers, percentages, benchmarks, or outcomes.\n\n"
+        "{draft_markdown}"
+    ),
+    version="1",
+)
+
+
 PROMPT_REGISTRY: dict[str, PromptTemplate] = {
     "blog_idea": BLOG_IDEA_PROMPT,
     "blog_outline": BLOG_OUTLINE_PROMPT,
     "draft_writer": DRAFT_WRITER_PROMPT,
     "technical_review": TECHNICAL_REVIEW_PROMPT,
     "marketing_metadata": MARKETING_META_PROMPT,
+    "claim_extraction": CLAIM_EXTRACTION_PROMPT,
 }

@@ -21,6 +21,7 @@ scripts/bin/harness-cli score-trace   # Score a trace against TRACE_SPEC.md tier
 scripts/bin/harness-cli query ...     # Query harness data, including backlog --open/--closed
 scripts/bin/harness-cli query matrix --numeric  # Show proof flags as 1/0
 python scripts/trace_quality.py       # Audit incomplete trace fields
+node scripts/setup-git-hooks.mjs      # Enable repo-root Husky hooks (also runs on frontend npm install)
 python scripts/deploy_smoke.py        # Smoke-test deployed backend/frontend URLs
 scripts/bin/harness-cli migrate       # Apply pending schema migrations
 scripts/bin/harness-cli --version     # Print the installed CLI version

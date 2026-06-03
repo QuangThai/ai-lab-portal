@@ -12,8 +12,8 @@ validation contracts before implementation.
 | --- | --- | --- | --- |
 | MVP 0 | Foundation | **Implemented** | US-001 |
 | MVP 1 | Manual CMS + public pages | **Implemented** | US-005–US-022 |
-| MVP 2 | AI-assisted blog | **In progress** | US-025–US-030 |
-| MVP 3 | AI News (official sources) | Planned | — |
+| MVP 2 | AI-assisted blog | **In progress** | US-025–US-031 |
+| MVP 3 | AI News (official sources) | **In progress** | US-036+ |
 | MVP 4 | User-submitted links | Planned | — |
 | MVP 5 | X/Twitter intelligence | Blocked | — |
 
@@ -102,19 +102,22 @@ Delivered:
 - Marketing metadata generation support.
 - Human approve/reject controls for each generated stage.
 - Regenerate affordances for rejected outline, draft, technical review, and marketing outputs.
+- Basic queued/completed/error feedback after AI generation actions.
+- Publish-from-approved-AI-flow bridge into blog posts (US-032).
+- AI run metadata persistence (`ai_runs` table, recording wrapper).
+- Durable Celery generation job tracking and admin polling (US-034).
+- Claim extraction and evidence ledger with publish blocking (US-035).
 
-Remaining:
+Remaining (post-MVP 2 polish):
 
-- Claim extraction/evidence ledger.
-- Full publish-from-approved-AI-flow bridge into blog posts.
-- Prompt version and AI run metadata persistence.
-- Stronger operational status/error reporting for queued or failed worker tasks.
+- Richer claim review UI and editor integration.
+- Native Harness CLI integration for `ai_runs` / job queries.
 
 ---
 
 ## MVP 3: AI News from Official Sources
 
-**Status: Planned**
+**Status: In progress** — news source registry shipped (US-036). Crawling and review queue next.
 
 Objective: prove the AI News pipeline with lower-risk sources before X/Twitter.
 

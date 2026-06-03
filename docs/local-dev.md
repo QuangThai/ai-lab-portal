@@ -53,9 +53,22 @@ With Docker Postgres on host port `15432`:
 - `npm run test:e2e` from `frontend/` reaches FastAPI on `18000` and Postgres on
   `15432` via Playwright config defaults.
 
+## Frontend pre-commit hooks
+
+After `npm install` in `frontend/`, git uses repo-root `.husky/pre-commit` to run
+`lint-staged`, `tsc --noEmit`, and `npm run build` before each commit.
+
+If hooks are missing on an existing clone, run once from repo root:
+
+```bash
+git config core.hooksPath .husky
+# or: cd frontend && npm run prepare
+```
+
 ## Harness verification
 
 ```bash
+python scripts/trace_quality.py
 scripts/bin/harness-cli story verify US-XXX
 scripts/bin/harness-cli query matrix
 git status --short   # requires a git worktree

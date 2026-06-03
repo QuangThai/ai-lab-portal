@@ -13,6 +13,7 @@ import {
   Moon,
   PencilLine,
   PlusCircle,
+  Rss,
   Sun,
 } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -20,7 +21,7 @@ import { useTheme } from "next-themes";
 import { adminDisplayTitleClass } from "@/components/admin/admin-ui";
 import { cn } from "@/lib/utils";
 
-type NavKey = "dashboard" | "blog" | "editor" | "showcases" | "showcase-editor" | "ideas";
+type NavKey = "dashboard" | "blog" | "editor" | "showcases" | "showcase-editor" | "ideas" | "news";
 
 type Props = { active: NavKey; children: ReactNode };
 
@@ -31,6 +32,7 @@ const navItems: Array<{ key: NavKey; href: string; label: string; icon: ReactNod
   { key: "ideas", href: "/admin/blog-ideas", label: "Ideas", icon: <Lightbulb className="size-4" /> },
   { key: "showcases", href: "/admin/showcases", label: "Showcases", icon: <Briefcase className="size-4" /> },
   { key: "showcase-editor", href: "/admin/showcases/editor", label: "New showcase", icon: <PlusCircle className="size-4" /> },
+  { key: "news", href: "/admin/news-sources", label: "AI News", icon: <Rss className="size-4" /> },
 ];
 
 function BrandMark() {

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
   CheckCircle,
@@ -16,6 +17,9 @@ import {
   Shield,
   Megaphone,
   Lightbulb,
+  Send,
+  ExternalLink,
+  Scale,
 } from "lucide-react";
 
 import { AdminBackLink } from "@/components/admin/admin-back-link";
@@ -74,8 +78,19 @@ export type BlogIdeaDetail = {
     tags: string[];
   } | null;
   marketing_status: string | null;
+  published_blog_post_id: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type BlogClaimItem = {
+  id: string;
+  blog_idea_id: string;
+  claim_text: string;
+  claim_type: string;
+  status: "pending" | "supported" | "unsupported" | "waived";
+  evidence_source_type: string | null;
+  evidence_reference: string | null;
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────
@@ -186,12 +201,26 @@ type Actions = {
   generateMarketing: (formData: FormData) => Promise<void>;
   approveMarketing: (formData: FormData) => Promise<void>;
   rejectMarketing: (formData: FormData) => Promise<void>;
+  publishToBlog: (formData: FormData) => Promise<void>;
+  extractClaims: (formData: FormData) => Promise<void>;
+  updateClaim: (formData: FormData) => Promise<void>;
 };
 
 // ─── Main Component ──────────────────────────────────────────────
 
+type OperationalStatus = {
+  message?: string;
+  opStage?: string;
+  opStatus?: string;
+  taskId?: string;
+  blogPostId?: string;
+  blogSlug?: string;
+};
+
 type Props = {
   idea: BlogIdeaDetail;
+  claims?: BlogClaimItem[];
+  operationalStatus?: OperationalStatus;
   actions: Actions;
 };
 
@@ -205,7 +234,7 @@ const sectionAnim = {
   show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } },
 };
 
-export function BlogIdeaDetailView({ idea, actions }: Props) {
+export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actions }: Props) {
   return (
     <motion.div
       variants={container}
@@ -280,6 +309,12 @@ export function BlogIdeaDetailView({ idea, actions }: Props) {
           })}
         </div>
       </motion.div>
+
+      {operationalStatus?.opStatus && operationalStatus.message && (
+        <motion.div variants={sectionAnim}>
+          <OperationalStatusBanner status={operationalStatus} />
+        </motion.div>
+      )}
 
       {/* ── Header ── */}
       <motion.div variants={sectionAnim}>
@@ -800,6 +835,129 @@ export function BlogIdeaDetailView({ idea, actions }: Props) {
           </div>
         )}
       </SectionCard>
+
+      {/* ── Claim evidence ledger ── */}
+      <SectionCard icon={Scale} label="Claims" status={null} statusColors={statusColors}>
+        {idea.draft_status !== "approved" ? (
+          <EmptyState message="Approve the draft before extracting claims for the evidence ledger." />
+        ) : (
+          <div className="grid gap-4">
+            <form action={actions.extractClaims}>
+              <input name="ideaId" type="hidden" value={idea.id} />
+              <button
+                className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "gap-2")}
+                type="submit"
+              >
+                <Search className="size-4" aria-hidden />
+                Extract claims from draft
+              </button>
+            </form>
+            {claims.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No claims in the ledger yet. Extract claims before publishing quantified statements.
+              </p>
+            ) : (
+              <ul className="grid gap-3">
+                {claims.map((claim) => (
+                  <li
+                    key={claim.id}
+                    className="rounded-lg border border-border bg-muted/30 p-4"
+                  >
+                    <p className="text-sm font-medium text-foreground">{claim.claim_text}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {claim.claim_type} · {claim.status}
+                    </p>
+                    {claim.status === "pending" && (
+                      <form action={actions.updateClaim} className="mt-3 grid gap-2">
+                        <input name="claimId" type="hidden" value={claim.id} />
+                        <input name="ideaId" type="hidden" value={idea.id} />
+                        <input
+                          name="evidenceSource"
+                          placeholder="Evidence source (e.g. measurement)"
+                          className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                        />
+                        <input
+                          name="evidenceReference"
+                          placeholder="Evidence reference or link"
+                          className="rounded-md border border-border bg-background px-2 py-1 text-sm"
+                        />
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            className={cn(buttonVariants({ size: "sm" }))}
+                            type="submit"
+                          >
+                            Attach evidence
+                          </button>
+                          <button
+                            className={cn(buttonVariants({ size: "sm", variant: "outline" }))}
+                            type="submit"
+                            name="waive"
+                            value="on"
+                          >
+                            Waive for publish
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </SectionCard>
+
+      {/* ── Publish bridge ── */}
+      <SectionCard
+        icon={Send}
+        label="Publish"
+        status={idea.published_blog_post_id ? "approved" : idea.marketing_status}
+        statusColors={statusColors}
+      >
+        {idea.published_blog_post_id ? (
+          <div className="grid gap-3">
+            <StatusDone label="Linked to a blog post" />
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href={`/admin/blog/${idea.published_blog_post_id}/edit`}
+                className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "gap-1.5")}
+              >
+                <FileText className="size-3.5" aria-hidden />
+                Edit in CMS
+              </Link>
+              {operationalStatus?.blogSlug && (
+                <Link
+                  href={`/blog/${operationalStatus.blogSlug}`}
+                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  <ExternalLink className="size-3.5" aria-hidden />
+                  View public post
+                </Link>
+              )}
+            </div>
+          </div>
+        ) : idea.marketing_status === "approved" ? (
+          <div className="grid gap-3">
+            <p className="text-sm text-muted-foreground">
+              Create a published blog post from the approved draft and marketing metadata.
+            </p>
+            <form action={actions.publishToBlog}>
+              <input name="ideaId" type="hidden" value={idea.id} />
+              <button
+                className={cn(buttonVariants({ variant: "default" }), "gap-2")}
+                type="submit"
+              >
+                <Send className="size-4" aria-hidden />
+                Publish to blog
+              </button>
+            </form>
+          </div>
+        ) : (
+          <EmptyState message="Approve marketing metadata to enable publishing to the blog." />
+        )}
+      </SectionCard>
     </motion.div>
   );
 }
@@ -934,6 +1092,70 @@ function StatusDone({ label }: { label: string }) {
       <CheckCircle className="size-3.5" aria-hidden />
       {label}
     </p>
+  );
+}
+
+function OperationalStatusBanner({ status }: { status: OperationalStatus }) {
+  const isError = status.opStatus === "error";
+  const isQueued = status.opStatus === "queued";
+  const isPublish = status.opStage === "publish";
+  return (
+    <div
+      role={isError ? "alert" : "status"}
+      className={cn(
+        "rounded-xl border p-4",
+        isError
+          ? "border-red-200 bg-red-50/80 text-red-900 dark:border-red-900 dark:bg-red-950/20 dark:text-red-200"
+          : isQueued
+            ? "border-amber-200 bg-amber-50/80 text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200"
+            : "border-emerald-200 bg-emerald-50/80 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-200"
+      )}
+    >
+      <div className="flex items-start gap-2">
+        {isError ? <AlertCircle className="mt-0.5 size-4" aria-hidden /> : <Sparkles className="mt-0.5 size-4" aria-hidden />}
+        <div className="grid gap-1">
+          <p className="text-sm font-semibold">
+            {isError
+              ? isPublish
+                ? "Publish needs attention"
+                : "Generation needs attention"
+              : isQueued
+                ? "Generation queued"
+                : isPublish
+                  ? "Published to blog"
+                  : "Generation completed"}
+          </p>
+          <p className="text-sm leading-snug opacity-90">{status.message}</p>
+          {(status.opStage || status.taskId) && (
+            <p className="text-xs opacity-75">
+              {status.opStage ? `Stage: ${status.opStage}` : null}
+              {status.opStage && status.taskId ? " · " : null}
+              {status.taskId ? `Task: ${status.taskId}` : null}
+            </p>
+          )}
+          {status.blogPostId && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Link
+                href={`/admin/blog/${status.blogPostId}/edit`}
+                className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "gap-1.5")}
+              >
+                Edit post
+              </Link>
+              {status.blogSlug && (
+                <Link
+                  href={`/blog/${status.blogSlug}`}
+                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  View live
+                </Link>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
   );
 }
 

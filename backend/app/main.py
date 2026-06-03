@@ -9,7 +9,11 @@ from backend.app.admin_boundary import (
     AdminIdentity,
     require_admin_identity_with_settings,
 )
+from backend.app.ai_runs import AiRunRepository, PostgresAiRunRepository
+from backend.app.blog_claims import BlogClaimsRepository, PostgresBlogClaimsRepository
 from backend.app.blog_ideas import BlogIdeaRepository, PostgresBlogIdeaRepository, create_blog_idea_routes
+from backend.app.generation_jobs import GenerationJobRepository, PostgresGenerationJobRepository
+from backend.app.news_sources import NewsSourceRepository, PostgresNewsSourceRepository, create_news_source_routes
 from backend.app.blog import (
     AdminBlogPostDetail,
     AdminBlogPostSummary,
@@ -51,27 +55,35 @@ def create_app(
     settings: Settings | None = None,
     blog_repository: BlogRepository | None = None,
     showcase_repository: ShowcaseRepository | None = None,
+    blog_idea_repository: BlogIdeaRepository | None = None,
+    generation_job_repository: GenerationJobRepository | None = None,
+    claims_repository: BlogClaimsRepository | None = None,
+    ai_run_repository: AiRunRepository | None = None,
+    news_source_repository: NewsSourceRepository | None = None,
 ) -> FastAPI:
     resolved_settings = settings or get_settings()
     if resolved_settings.environment == "test":
         repository = blog_repository or BlogRepository()
         showcases_repo = showcase_repository or ShowcaseRepository()
-        ideas_repo: BlogIdeaRepository = BlogIdeaRepository()
+        ideas_repo = blog_idea_repository or BlogIdeaRepository()
+        jobs_repo = generation_job_repository or GenerationJobRepository()
+        claims_repo = claims_repository or BlogClaimsRepository()
+        ai_runs_repo = ai_run_repository or AiRunRepository()
+        news_sources_repo = news_source_repository or NewsSourceRepository()
     else:
         engine = create_database_engine(resolved_settings)
         repository = blog_repository or PostgresBlogRepository(engine)
         showcases_repo = showcase_repository or PostgresShowcaseRepository(engine)
         ideas_repo = PostgresBlogIdeaRepository(engine)
+        jobs_repo = generation_job_repository or PostgresGenerationJobRepository(engine)
+        claims_repo = claims_repository or PostgresBlogClaimsRepository(engine)
+        ai_runs_repo = ai_run_repository or PostgresAiRunRepository(engine)
+        news_sources_repo = news_source_repository or PostgresNewsSourceRepository(engine)
 
     app = FastAPI(title=resolved_settings.app_name)
     app.state.settings = resolved_settings
     app.add_middleware(RequestLoggingMiddleware)
     app.add_api_route("/health", health, methods=["GET"])
-
-    ideas_router = create_blog_idea_routes(ideas_repo, resolved_settings)
-    app.include_router(ideas_router)
-    ideas_router = create_blog_idea_routes(ideas_repo, resolved_settings)
-    app.include_router(ideas_router)
 
     def require_configured_admin_identity(
         identity_payload: Annotated[
@@ -90,6 +102,18 @@ def create_app(
             action=action,
             entity_id=post_id,
         )
+
+    ideas_router = create_blog_idea_routes(
+        ideas_repo,
+        resolved_settings,
+        blog_repository=repository,
+        record_blog_audit=record_blog_audit,
+        jobs_repository=jobs_repo,
+        claims_repository=claims_repo,
+        ai_runs_repository=ai_runs_repo,
+    )
+    app.include_router(ideas_router)
+    app.include_router(create_news_source_routes(news_sources_repo, resolved_settings))
 
     def record_showcase_audit(
         identity: AdminIdentity, action: str, showcase_id: str

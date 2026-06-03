@@ -7,7 +7,7 @@ import {
   PencilLine,
   Shield,
   Sparkles,
-  Workflow,
+  Rss,
 } from "lucide-react";
 
 import { AdminCmsShell } from "@/components/admin/admin-cms-shell";
@@ -53,11 +53,18 @@ const liveModules: AdminModuleCardProps[] = [
     icon: Briefcase,
     status: "live",
   },
+  {
+    title: "AI News sources",
+    description: "Configure RSS and official feeds for the intelligence pipeline.",
+    href: "/admin/news-sources",
+    icon: Rss,
+    status: "live",
+  },
 ];
 
 const plannedModules: AdminModuleCardProps[] = [
   { title: "Editorial queue", description: "AI-assisted review queues and human approval routing.", icon: Sparkles, status: "planned" },
-  { title: "Source review", description: "Ingested source intelligence and dedupe review.", icon: Workflow, status: "planned" },
+
   { title: "Prompt registry", description: "Versioned prompts and provider configuration.", icon: Sparkles, status: "planned" },
   { title: "Publishing checks", description: "Preflight SEO, link, and metadata validation.", icon: Sparkles, status: "planned" },
 ];

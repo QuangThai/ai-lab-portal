@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from collections.abc import Callable
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
@@ -24,7 +25,18 @@ from backend.app.admin_boundary import (
     AdminIdentity,
     require_admin_identity_with_settings,
 )
+from backend.app.ai_runs import AiRun, AiRunRepository
+from backend.app.blog import BlogRepository
+from backend.app.blog_claims import (
+    BlogClaim,
+    BlogClaimUpdate,
+    BlogClaimsRepository,
+    claims_from_extraction,
+    extract_claims_with_llm,
+    heuristic_claims_from_draft,
+)
 from backend.app.database import blog_ideas as blog_ideas_table
+from backend.app.generation_jobs import GenerationJob, GenerationJobRepository, GenerationStage
 from backend.app.settings import Settings
 
 IdeaSource = Literal["manual", "ai_generated"]
@@ -66,6 +78,7 @@ class BlogIdea(BaseModel):
     technical_review_status: str | None = None
     marketing_metadata: dict | None = None
     marketing_status: str | None = None
+    published_blog_post_id: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -105,6 +118,14 @@ class BlogIdeaGenerateOutlineRequest(BaseModel):
     """Trigger AI outline generation for an approved idea."""
 
     positioning_notes: list[str] = Field(default_factory=list)
+
+
+class PublishFromIdeaResponse(BaseModel):
+    """Result of bridging an approved idea into a published blog post."""
+
+    blog_post_id: str
+    slug: str
+    already_linked: bool = False
 
 
 class BlogIdeaSummary(BaseModel):
@@ -271,6 +292,16 @@ class BlogIdeaRepository:
         updated = idea.model_copy(deep=True)
         updated.marketing_metadata = metadata
         updated.marketing_status = status
+        updated.updated_at = datetime.now(UTC)
+        self._ideas[idea_id] = updated
+        return updated
+
+    def link_published_post(self, idea_id: str, post_id: str) -> BlogIdea | None:
+        idea = self._ideas.get(idea_id)
+        if idea is None:
+            return None
+        updated = idea.model_copy(deep=True)
+        updated.published_blog_post_id = post_id
         updated.updated_at = datetime.now(UTC)
         self._ideas[idea_id] = updated
         return updated
@@ -484,6 +515,22 @@ class PostgresBlogIdeaRepository(BlogIdeaRepository):
             )
         return self.get_by_id(idea_id)
 
+    def link_published_post(self, idea_id: str, post_id: str) -> BlogIdea | None:
+        existing = self.get_by_id(idea_id)
+        if existing is None:
+            return None
+        values: dict = {
+            "published_blog_post_id": post_id,
+            "updated_at": datetime.now(UTC),
+        }
+        with self._engine.begin() as conn:
+            conn.execute(
+                update(blog_ideas_table)
+                .where(blog_ideas_table.c.id == idea_id)
+                .values(**values)
+            )
+        return self.get_by_id(idea_id)
+
 
 def _row_to_idea(row: dict) -> BlogIdea:
     data = dict(row)
@@ -527,9 +574,35 @@ def _row_to_idea(row: dict) -> BlogIdea:
 # ---------------------------------------------------------------------------
 
 
+def _dispatch_generation_task(
+    *,
+    stage: GenerationStage,
+    idea_id: str,
+    celery_task_id: str,
+    message: str,
+    jobs_repository: GenerationJobRepository | None,
+    track_job: bool,
+) -> None:
+    if track_job and jobs_repository is not None:
+        jobs_repository.create_queued(
+            blog_idea_id=idea_id,
+            stage=stage,
+            celery_task_id=celery_task_id,
+        )
+    raise HTTPException(
+        status_code=202,
+        detail={"task_id": celery_task_id, "message": message},
+    )
+
+
 def create_blog_idea_routes(
     repository: BlogIdeaRepository,
     settings: Settings,
+    blog_repository: BlogRepository | None = None,
+    record_blog_audit: Callable[[AdminIdentity, str, str], None] | None = None,
+    jobs_repository: GenerationJobRepository | None = None,
+    claims_repository: BlogClaimsRepository | None = None,
+    ai_runs_repository: AiRunRepository | None = None,
 ) -> APIRouter:
     """Create a router with blog idea endpoints."""
 
@@ -546,6 +619,31 @@ def create_blog_idea_routes(
         )
 
     router = APIRouter(prefix="/admin/blog-ideas")
+
+    @router.get("/generation-jobs/{task_id}")
+    async def get_generation_job(
+        task_id: str,
+        _identity: AdminIdentity = Depends(require_identity),
+    ) -> GenerationJob:
+        if jobs_repository is None:
+            raise HTTPException(status_code=404, detail="Generation job not found")
+        job = jobs_repository.get_by_celery_task_id(task_id)
+        if job is None:
+            raise HTTPException(status_code=404, detail="Generation job not found")
+        return job
+
+    @router.patch("/claims/{claim_id}")
+    async def update_claim(
+        claim_id: str,
+        payload: BlogClaimUpdate,
+        _identity: AdminIdentity = Depends(require_identity),
+    ) -> BlogClaim:
+        if claims_repository is None:
+            raise HTTPException(status_code=500, detail="Claims repository not configured")
+        updated = claims_repository.update(claim_id, payload)
+        if updated is None:
+            raise HTTPException(status_code=404, detail="Claim not found")
+        return updated
 
     @router.get("")
     async def list_ideas(
@@ -601,9 +699,13 @@ def create_blog_idea_routes(
                 technical_highlights=payload.technical_highlights,
                 business_value=payload.business_value,
             )
-            raise HTTPException(
-                status_code=202,
-                detail={"task_id": task.id, "message": "Idea generation started"},
+            _dispatch_generation_task(
+                stage="idea",
+                idea_id=f"pending:{task.id}",
+                celery_task_id=task.id,
+                message="Idea generation started",
+                jobs_repository=jobs_repository,
+                track_job=jobs_repository is not None,
             )
 
         result = generate_blog_idea_task(
@@ -638,9 +740,13 @@ def create_blog_idea_routes(
 
         if isinstance(repository, PostgresBlogIdeaRepository):
             task = generate_blog_outline_task.delay(idea_id=idea_id)
-            raise HTTPException(
-                status_code=202,
-                detail={"task_id": task.id, "message": "Outline generation started"},
+            _dispatch_generation_task(
+                stage="outline",
+                idea_id=idea_id,
+                celery_task_id=task.id,
+                message="Outline generation started",
+                jobs_repository=jobs_repository,
+                track_job=True,
             )
 
         result = generate_blog_outline_task(idea_id=idea_id)
@@ -668,9 +774,13 @@ def create_blog_idea_routes(
 
         if isinstance(repository, PostgresBlogIdeaRepository):
             task = generate_blog_draft_task.delay(idea_id=idea_id)
-            raise HTTPException(
-                status_code=202,
-                detail={"task_id": task.id, "message": "Draft generation started"},
+            _dispatch_generation_task(
+                stage="draft",
+                idea_id=idea_id,
+                celery_task_id=task.id,
+                message="Draft generation started",
+                jobs_repository=jobs_repository,
+                track_job=True,
             )
 
         result = generate_blog_draft_task(idea_id=idea_id)
@@ -699,9 +809,13 @@ def create_blog_idea_routes(
 
         if isinstance(repository, PostgresBlogIdeaRepository):
             task = generate_technical_review_task.delay(idea_id=idea_id)
-            raise HTTPException(
-                status_code=202,
-                detail={"task_id": task.id, "message": "Technical review started"},
+            _dispatch_generation_task(
+                stage="technical_review",
+                idea_id=idea_id,
+                celery_task_id=task.id,
+                message="Technical review started",
+                jobs_repository=jobs_repository,
+                track_job=True,
             )
 
         result = generate_technical_review_task(idea_id=idea_id)
@@ -730,12 +844,85 @@ def create_blog_idea_routes(
 
         if isinstance(repository, PostgresBlogIdeaRepository):
             task = generate_marketing_metadata_task.delay(idea_id=idea_id)
-            raise HTTPException(
-                status_code=202,
-                detail={"task_id": task.id, "message": "Marketing metadata generation started"},
+            _dispatch_generation_task(
+                stage="marketing",
+                idea_id=idea_id,
+                celery_task_id=task.id,
+                message="Marketing metadata generation started",
+                jobs_repository=jobs_repository,
+                track_job=True,
             )
 
         result = generate_marketing_metadata_task(idea_id=idea_id)
         return result
+
+    @router.post("/{idea_id}/publish-to-blog")
+    async def publish_to_blog(
+        idea_id: str,
+        identity: AdminIdentity = Depends(require_identity),
+    ) -> PublishFromIdeaResponse:
+        """Create and publish a blog post from a fully approved idea."""
+        if blog_repository is None:
+            raise HTTPException(
+                status_code=500,
+                detail="Blog repository is not configured for publish bridge",
+            )
+        from backend.app.blog_publish import publish_idea_to_blog
+
+        post_id, slug, already_linked = publish_idea_to_blog(
+            idea_id,
+            repository,
+            blog_repository,
+            claims_repository=claims_repository,
+        )
+        if not already_linked and record_blog_audit is not None:
+            record_blog_audit(identity, "blog_post.created", post_id)
+            record_blog_audit(identity, "blog_post.published", post_id)
+            record_blog_audit(identity, "blog_idea.published_to_blog", idea_id)
+        return PublishFromIdeaResponse(
+            blog_post_id=post_id,
+            slug=slug,
+            already_linked=already_linked,
+        )
+
+    @router.get("/{idea_id}/ai-runs")
+    async def list_ai_runs(
+        idea_id: str,
+        _identity: AdminIdentity = Depends(require_identity),
+    ) -> list[AiRun]:
+        if ai_runs_repository is None:
+            return []
+        return ai_runs_repository.list_for_entity("blog_idea", idea_id)
+
+    @router.get("/{idea_id}/claims")
+    async def list_claims(
+        idea_id: str,
+        _identity: AdminIdentity = Depends(require_identity),
+    ) -> list[BlogClaim]:
+        if claims_repository is None:
+            return []
+        return claims_repository.list_for_idea(idea_id)
+
+    @router.post("/{idea_id}/extract-claims")
+    async def extract_claims(
+        idea_id: str,
+        _identity: AdminIdentity = Depends(require_identity),
+    ) -> list[BlogClaim]:
+        if claims_repository is None:
+            raise HTTPException(status_code=500, detail="Claims repository not configured")
+        idea = repository.get_by_id(idea_id)
+        if idea is None:
+            raise HTTPException(status_code=404, detail="Blog idea not found")
+        if not idea.draft_markdown:
+            raise HTTPException(status_code=400, detail="Draft markdown is required")
+        from backend.app.task_support import llm_service_for_idea
+
+        try:
+            service = llm_service_for_idea(idea_id)
+            extraction = extract_claims_with_llm(idea, service)
+            claims = claims_from_extraction(idea_id, extraction)
+        except Exception:
+            claims = heuristic_claims_from_draft(idea_id, idea.draft_markdown)
+        return claims_repository.replace_for_idea(idea_id, claims)
 
     return router

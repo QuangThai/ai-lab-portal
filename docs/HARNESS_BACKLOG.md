@@ -80,16 +80,24 @@ proposed | accepted | implemented | rejected
 
 ### #6 — Add husky/lint-staged pre-commit hooks for frontend typecheck and build
 
-- **Status:** proposed
+- **Status:** implemented
 - **Risk:** tiny
 - **Discovered while:** UI/UX improvement session
 - **Pain:** Devs must manually run typecheck and build after every frontend change; easy to forget.
-- **Suggestion:** Add husky pre-commit hook running `lint-staged` with `tsc --noEmit` and `npm run build` checks.
+- **Outcome:** Repo-root `.husky/pre-commit` runs `npm run quality:precommit` in `frontend/` (lint-staged, typecheck, build). `npm install` in `frontend/` sets `core.hooksPath` via `scripts/setup-git-hooks.mjs`.
 
 ### #7 — Add dark mode toggle button to admin CMS shell sidebar
 
-- **Status:** proposed
+- **Status:** implemented
 - **Risk:** tiny
 - **Discovered while:** UI/UX improvement session
 - **Pain:** CSS dark mode variables are defined but no UI to switch; users on dark OS get no toggle.
-- **Suggestion:** Add a sun/moon icon button in the admin sidebar to toggle `.dark` class.
+- **Outcome:** `next-themes` provider plus light/dark toggle in `admin-cms-shell` (desktop sidebar and mobile header).
+
+### #8 — Add trace quality audit command
+
+- **Status:** implemented
+- **Risk:** tiny
+- **Discovered while:** Harness friction/trace audit (trace 60)
+- **Pain:** Incomplete traces required ad hoc SQL.
+- **Outcome:** `python scripts/trace_quality.py` audits core trace fields; documented in `scripts/README.md`. Native Rust CLI integration remains optional later.

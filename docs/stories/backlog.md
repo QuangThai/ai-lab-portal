@@ -45,3 +45,9 @@ a durable place to land.
 | `US-022` | E02 Manual CMS | implemented |
 | `US-023` | E02 Manual CMS | implemented |
 | `US-024` | E00 Foundation | implemented |
+| `US-025`–`US-031` | E03 AI Blog Agent | implemented |
+| `US-032` | E03 AI Blog Agent | implemented |
+| `US-033` | E03 AI Blog Agent | implemented |
+| `US-034` | E03 AI Blog Agent | implemented |
+| `US-035` | E03 AI Blog Agent | implemented |
+| `US-036` | E04 AI News | implemented |

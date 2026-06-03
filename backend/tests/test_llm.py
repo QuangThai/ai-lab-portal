@@ -41,6 +41,7 @@ class TestPromptRegistry:
             "draft_writer",
             "technical_review",
             "marketing_metadata",
+            "claim_extraction",
         }
         assert expected.issubset(PROMPT_REGISTRY.keys())
 

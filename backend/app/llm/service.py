@@ -37,13 +37,22 @@ class LLMService(ABC):
     and return a validated Pydantic model.
     """
 
-    @abstractmethod
     def generate(
         self,
         prompt_name: str,
         inputs: dict[str, Any],
         output_schema: type[BaseModel],
     ) -> BaseModel:
+        result, _usage = self.generate_with_usage(prompt_name, inputs, output_schema)
+        return result
+
+    @abstractmethod
+    def generate_with_usage(
+        self,
+        prompt_name: str,
+        inputs: dict[str, Any],
+        output_schema: type[BaseModel],
+    ) -> tuple[BaseModel, dict[str, int] | None]:
         """Call the LLM and return a validated structured output.
 
         Args:
@@ -80,12 +89,12 @@ class OpenAILLMService(LLMService):
         self._client = OpenAI(api_key=api_key)
         self._model = model
 
-    def generate(
+    def generate_with_usage(
         self,
         prompt_name: str,
         inputs: dict[str, Any],
         output_schema: type[BaseModel],
-    ) -> BaseModel:
+    ) -> tuple[BaseModel, dict[str, int] | None]:
         prompt = PROMPT_REGISTRY.get(prompt_name)
         if prompt is None:
             raise KeyError(
@@ -116,7 +125,14 @@ class OpenAILLMService(LLMService):
                 f"LLM returned no parsed response for prompt '{prompt_name}'"
             )
 
-        return parsed
+        usage = None
+        if completion.usage is not None:
+            usage = {
+                "prompt_tokens": completion.usage.prompt_tokens,
+                "completion_tokens": completion.usage.completion_tokens,
+                "total_tokens": completion.usage.total_tokens,
+            }
+        return parsed, usage
 
 
 class FakeLLMService(LLMService):
@@ -133,16 +149,16 @@ class FakeLLMService(LLMService):
     def __init__(self, responses: dict[str, BaseModel]) -> None:
         self._responses = dict(responses)
 
-    def generate(
+    def generate_with_usage(
         self,
         prompt_name: str,
         inputs: dict[str, Any],  # noqa: ARG002 — not used by fake
         output_schema: type[BaseModel],  # noqa: ARG002 — not used by fake
-    ) -> BaseModel:
+    ) -> tuple[BaseModel, dict[str, int] | None]:
         result = self._responses.get(prompt_name)
         if result is None:
             raise LLMGenerationError(
                 f"No fake response configured for '{prompt_name}'. "
                 f"Available: {list(self._responses)}"
             )
-        return result
+        return result, {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
