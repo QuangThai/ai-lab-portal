@@ -336,5 +336,9 @@ def process_submitted_link_task(submission_id: str) -> dict:
         submission_id,
         repository=submitted_link_repository(),
         extracted=extracted_article_repository(),
+        raw_items=news_raw_item_repository(),
+        sources=news_source_repository(),
+        review=news_review_repository(),
+        extractor=article_extractor(),
     )
     return row.model_dump()

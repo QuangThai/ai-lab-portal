@@ -191,6 +191,9 @@ def create_app(
             submitted_repo,
             resolved_settings,
             extracted_repository=extracted_repo,
+            raw_items_repository=news_raw_repo,
+            sources_repository=news_sources_repo,
+            review_repository=review_repo,
             enqueue_process=process_submission_enqueue,
         )
     )

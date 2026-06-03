@@ -19,14 +19,19 @@ from backend.app.admin_boundary import (
     AdminIdentity,
     require_admin_identity_with_settings,
 )
+from urllib.parse import urlparse
+
 from backend.app.database import news_submitted_links as submitted_table
-from backend.app.news_crawl import UnsafeUrlError, validate_fetch_url
+from backend.app.news_crawl import NewsRawItemRepository, ParsedFeedItem, UnsafeUrlError, content_hash_for_item, validate_fetch_url
 from backend.app.news_dedup import canonicalize_url
-from backend.app.news_extraction import ExtractedArticleRepository
+from backend.app.news_extraction import ArticleExtractor, ExtractedArticleRepository
+from backend.app.news_scoring import NewsReviewRepository
+from backend.app.news_sources import NewsSourceRepository
 from backend.app.settings import Settings
 
-SubmittedLinkStatus = Literal["submitted", "processing", "duplicate", "failed"]
+SubmittedLinkStatus = Literal["submitted", "processing", "duplicate", "failed", "in_review"]
 DEFAULT_RATE_LIMIT_PER_HOUR = 5
+USER_SUBMISSION_SOURCE_ID = "newssrc_user_submissions"
 
 
 class SubmittedLinkCreate(BaseModel):
@@ -48,6 +53,8 @@ class SubmittedLinkSummary(BaseModel):
     rate_limit_key: str
     status: SubmittedLinkStatus
     processing_error: str | None = None
+    raw_item_id: str | None = None
+    review_item_id: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -108,6 +115,8 @@ class SubmittedLinkRepository(ABC):
         *,
         status: SubmittedLinkStatus,
         processing_error: str | None = None,
+        raw_item_id: str | None = None,
+        review_item_id: str | None = None,
     ) -> SubmittedLinkSummary | None:
         ...
 
@@ -170,17 +179,22 @@ class InMemorySubmittedLinkRepository(SubmittedLinkRepository):
         *,
         status: SubmittedLinkStatus,
         processing_error: str | None = None,
+        raw_item_id: str | None = None,
+        review_item_id: str | None = None,
     ) -> SubmittedLinkSummary | None:
         row = self._rows.get(submission_id)
         if row is None:
             return None
-        updated = row.model_copy(
-            update={
-                "status": status,
-                "processing_error": processing_error,
-                "updated_at": datetime.now(UTC),
-            }
-        )
+        update_fields: dict[str, object] = {
+            "status": status,
+            "processing_error": processing_error,
+            "updated_at": datetime.now(UTC),
+        }
+        if raw_item_id is not None:
+            update_fields["raw_item_id"] = raw_item_id
+        if review_item_id is not None:
+            update_fields["review_item_id"] = review_item_id
+        updated = row.model_copy(update=update_fields)
         self._rows[submission_id] = updated
         return updated
 
@@ -254,6 +268,8 @@ class PostgresSubmittedLinkRepository(SubmittedLinkRepository):
             "rate_limit_key": rate_limit_key_value,
             "status": "submitted",
             "processing_error": None,
+            "raw_item_id": None,
+            "review_item_id": None,
             "created_at": now,
             "updated_at": now,
         }
@@ -271,15 +287,72 @@ class PostgresSubmittedLinkRepository(SubmittedLinkRepository):
         *,
         status: SubmittedLinkStatus,
         processing_error: str | None = None,
+        raw_item_id: str | None = None,
+        review_item_id: str | None = None,
     ) -> SubmittedLinkSummary | None:
         now = datetime.now(UTC)
+        values: dict[str, object] = {
+            "status": status,
+            "processing_error": processing_error,
+            "updated_at": now,
+        }
+        if raw_item_id is not None:
+            values["raw_item_id"] = raw_item_id
+        if review_item_id is not None:
+            values["review_item_id"] = review_item_id
         with self._engine.begin() as conn:
             conn.execute(
                 update(submitted_table)
                 .where(submitted_table.c.id == submission_id)
-                .values(status=status, processing_error=processing_error, updated_at=now)
+                .values(**values)
             )
         return self.get_by_id(submission_id)
+
+
+def _submission_title(submission: SubmittedLinkSummary) -> str:
+    note = (submission.note or "").strip()
+    if note:
+        return note[:512]
+    parsed = urlparse(submission.url)
+    slug = parsed.path.rstrip("/").split("/")[-1] or parsed.hostname or "link"
+    return f"Submitted: {slug}"[:512]
+
+
+def ensure_user_submission_source(sources: NewsSourceRepository):
+    source = sources.get_by_id(USER_SUBMISSION_SOURCE_ID)
+    if source is None:
+        raise ValueError(f"Missing news source: {USER_SUBMISSION_SOURCE_ID}")
+    return source
+
+
+def materialize_submission_raw_item(
+    submission: SubmittedLinkSummary,
+    *,
+    source_id: str,
+    raw_items: NewsRawItemRepository,
+):
+    item = ParsedFeedItem(
+        external_id=submission.id,
+        title=_submission_title(submission),
+        link_url=submission.url,
+        published_at=None,
+        raw_payload={
+            "submission_id": submission.id,
+            "suggested_category": submission.suggested_category or "",
+            "submitter_email": submission.submitter_email or "",
+        },
+    )
+    fetched_at = datetime.now(UTC)
+    raw_items.upsert_item(
+        source_id=source_id,
+        item=item,
+        content_hash=content_hash_for_item(item),
+        fetched_at=fetched_at,
+    )
+    for row in raw_items.list_for_source(source_id):
+        if row.external_id == submission.id:
+            return row
+    raise RuntimeError(f"Failed to materialize raw item for submission {submission.id}")
 
 
 def run_submit_link(
@@ -331,10 +404,17 @@ def run_process_submitted_link(
     *,
     repository: SubmittedLinkRepository,
     extracted: ExtractedArticleRepository,
+    raw_items: NewsRawItemRepository,
+    sources: NewsSourceRepository,
+    review: NewsReviewRepository,
+    extractor: ArticleExtractor,
 ) -> SubmittedLinkSummary:
     row = repository.get_by_id(submission_id)
     if row is None:
         raise ValueError(f"Submission not found: {submission_id}")
+
+    if row.raw_item_id and row.status in {"in_review", "submitted", "duplicate"}:
+        return row
 
     repository.set_status(submission_id, status="processing")
     try:
@@ -357,7 +437,48 @@ def run_process_submitted_link(
         assert updated is not None
         return updated
 
-    updated = repository.set_status(submission_id, status="submitted")
+    source = ensure_user_submission_source(sources)
+    raw_item = materialize_submission_raw_item(row, source_id=source.id, raw_items=raw_items)
+
+    from backend.app.news_extraction import run_extract_raw_item
+
+    extract_result = run_extract_raw_item(
+        raw_item.id,
+        raw_items=raw_items,
+        extracted=extracted,
+        extractor=extractor,
+        sources=sources,
+        review=review,
+    )
+    if extract_result.status != "success" or not extract_result.extraction_id:
+        updated = repository.set_status(
+            submission_id,
+            status="failed",
+            raw_item_id=raw_item.id,
+            processing_error=extract_result.error or "Extraction failed",
+        )
+        assert updated is not None
+        return updated
+
+    article = extracted.get_by_id(extract_result.extraction_id)
+    if article is not None and article.duplicate_status != "unique":
+        updated = repository.set_status(
+            submission_id,
+            status="duplicate",
+            raw_item_id=raw_item.id,
+            processing_error=f"Duplicate article: {article.duplicate_status}",
+        )
+        assert updated is not None
+        return updated
+
+    review_item = review.get_by_extracted_article_id(extract_result.extraction_id)
+    final_status: SubmittedLinkStatus = "in_review" if review_item and review_item.review_status == "candidate" else "submitted"
+    updated = repository.set_status(
+        submission_id,
+        status=final_status,
+        raw_item_id=raw_item.id,
+        review_item_id=review_item.id if review_item else None,
+    )
     assert updated is not None
     return updated
 
@@ -367,6 +488,9 @@ def create_submitted_link_routes(
     settings: Settings,
     *,
     extracted_repository: ExtractedArticleRepository | None = None,
+    raw_items_repository: NewsRawItemRepository | None = None,
+    sources_repository: NewsSourceRepository | None = None,
+    review_repository: NewsReviewRepository | None = None,
     enqueue_process: Callable[[str], str] | None = None,
     rate_limit_per_hour: int = DEFAULT_RATE_LIMIT_PER_HOUR,
 ) -> APIRouter:
@@ -400,7 +524,13 @@ def create_submitted_link_routes(
         submission_id: str,
         _identity: AdminIdentity = Depends(require_identity),
     ):
-        from backend.app.task_support import extracted_article_repository
+        from backend.app.task_support import (
+            article_extractor,
+            extracted_article_repository,
+            news_raw_item_repository,
+            news_review_repository,
+            news_source_repository,
+        )
 
         if enqueue_process is not None:
             return ProcessQueuedResponse(task_id=enqueue_process(submission_id))
@@ -409,6 +539,10 @@ def create_submitted_link_routes(
             submission_id,
             repository=repository,
             extracted=extracted_repository or extracted_article_repository(settings),
+            raw_items=raw_items_repository or news_raw_item_repository(settings),
+            sources=sources_repository or news_source_repository(settings),
+            review=review_repository or news_review_repository(settings),
+            extractor=article_extractor(settings),
         )
 
     return router

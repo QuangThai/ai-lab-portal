@@ -14,7 +14,7 @@ validation contracts before implementation.
 | MVP 1 | Manual CMS + public pages | **Implemented** | US-005–US-022 |
 | MVP 2 | AI-assisted blog | **Implemented** | US-025–US-035, US-043 |
 | MVP 3 | AI News (official sources) | **Implemented** | US-036–US-041 |
-| MVP 4 | User-submitted links | **In progress** | US-044 (submit flow shipped) |
+| MVP 4 | User-submitted links | **In progress** | US-044–US-045 |
 | MVP 5 | X/Twitter intelligence | Blocked | — |
 
 ---
@@ -138,7 +138,7 @@ Deferred (post-MVP 3):
 
 ## MVP 4: User-Submitted Links
 
-**Status: In progress** — US-044 submit + admin intake shipped; full pipeline merge TBD.
+**Status: In progress** — US-044 submit intake and US-045 pipeline merge shipped.
 
 Objective: allow safe user/internal team link submission.
 
@@ -150,10 +150,16 @@ Delivered (US-044):
 - Admin submitted-link list/get/process APIs.
 - Duplicate detection against existing extracted canonical URLs.
 
+Delivered (US-045):
+
+- Submission processing materializes raw items under `newssrc_user_submissions`.
+- Extract → dedup → score pipeline runs on process.
+- Submissions link to `raw_item_id` / `review_item_id`; status `in_review` for candidates.
+
 Deferred:
 
-- Automatic merge into extract/score/review pipeline.
 - AI classification output on submissions.
+- Dedicated admin review UI for submitted links.
 - Public appearance before human approval beyond existing review flow.
 
 ---

@@ -59,3 +59,4 @@ a durable place to land.
 | `US-042` | E04 AI News | implemented |
 | `US-043` | E03 AI Blog Agent | implemented |
 | `US-044` | E04 User-Submitted Links | implemented |
+| `US-045` | E04 User-Submitted Links | implemented |

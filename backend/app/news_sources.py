@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from backend.app.news_extraction import ExtractedArticleRepository
     from backend.app.news_scoring import NewsReviewRepository
 
-NewsSourceType = Literal["rss", "github", "website"]
+NewsSourceType = Literal["rss", "github", "website", "user_submit"]
 NewsPriority = Literal["high", "medium", "low"]
 
 
@@ -262,6 +262,19 @@ def _default_sources() -> list[NewsSource]:
             crawl_frequency_minutes=720,
             is_enabled=False,
             credibility_base_score=0.9,
+            created_at=now,
+            updated_at=now,
+        ),
+        NewsSource(
+            id="newssrc_user_submissions",
+            name="User Submissions",
+            source_type="user_submit",
+            url_or_identifier="user-submit://intake",
+            description="Links submitted via /ai-news/submit.",
+            priority="medium",
+            crawl_frequency_minutes=10080,
+            is_enabled=True,
+            credibility_base_score=0.6,
             created_at=now,
             updated_at=now,
         ),

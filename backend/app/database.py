@@ -262,6 +262,13 @@ news_submitted_links = Table(
     Column("rate_limit_key", String(128), nullable=False),
     Column("status", String(32), nullable=False),
     Column("processing_error", Text, nullable=True),
+    Column("raw_item_id", String(64), ForeignKey("news_raw_items.id", ondelete="SET NULL"), nullable=True),
+    Column(
+        "review_item_id",
+        String(64),
+        ForeignKey("news_review_items.id", ondelete="SET NULL"),
+        nullable=True,
+    ),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("updated_at", DateTime(timezone=True), nullable=False),
     UniqueConstraint("url_normalized", name="uq_news_submitted_links_url_normalized"),

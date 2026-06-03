@@ -35,6 +35,7 @@ Maps MVP 1 product behavior to proof layers. Update when story contracts change.
 | US-042 | MVP3 AI News closeout | yes | yes | yes | no | implemented | `backend/tests/test_news_*.py` (combined) |
 | US-043 | MVP2 AI blog closeout | yes | yes | no | no | implemented | `backend/tests/test_blog_*.py` (combined) |
 | US-044 | User-submitted AI news links | yes | yes | yes | no | implemented | `backend/tests/test_news_submitted_links.py` |
+| US-045 | Submission pipeline merge | yes | yes | no | no | implemented | `backend/tests/test_news_submitted_links.py` (`test_process_runs_extract_score_pipeline`) |
 
 ## Evidence Rules
 
