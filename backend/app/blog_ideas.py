@@ -10,9 +10,9 @@ Exposes:
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 from collections.abc import Callable
-from typing import Annotated, Any, Literal
+from datetime import UTC, datetime
+from typing import Annotated, Any, Literal, cast
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -26,17 +26,21 @@ from backend.app.admin_boundary import (
     require_admin_identity_with_settings,
 )
 from backend.app.ai_runs import AiRun, AiRunRepository
-from backend.app.blog import BlogRepository
+from backend.app.blog import BlogRepositoryProtocol
 from backend.app.blog_claims import (
     BlogClaim,
-    BlogClaimUpdate,
     BlogClaimsRepository,
+    BlogClaimUpdate,
     claims_from_extraction,
     extract_claims_with_llm,
     heuristic_claims_from_draft,
 )
 from backend.app.database import blog_ideas as blog_ideas_table
-from backend.app.generation_jobs import GenerationJob, GenerationJobRepository, GenerationStage
+from backend.app.generation_jobs import (
+    GenerationJob,
+    GenerationJobRepository,
+    GenerationStage,
+)
 from backend.app.settings import Settings
 
 IdeaSource = Literal["manual", "ai_generated"]
@@ -342,7 +346,7 @@ class PostgresBlogIdeaRepository(BlogIdeaRepository):
             )
             if row is None:
                 return None
-            return _row_to_idea(row)
+            return _row_to_idea(dict(row))
 
     def create(self, payload: BlogIdeaCreate) -> BlogIdea:
         now = datetime.now(UTC)
@@ -435,9 +439,7 @@ class PostgresBlogIdeaRepository(BlogIdeaRepository):
         if existing is None:
             return None
         values: dict = {
-            "outline_sections": json.dumps(
-                [s.model_dump() for s in sections]
-            ),
+            "outline_sections": json.dumps([s.model_dump() for s in sections]),
             "outline_status": status,
             "updated_at": datetime.now(UTC),
         }
@@ -598,7 +600,7 @@ def _dispatch_generation_task(
 def create_blog_idea_routes(
     repository: BlogIdeaRepository,
     settings: Settings,
-    blog_repository: BlogRepository | None = None,
+    blog_repository: BlogRepositoryProtocol | None = None,
     record_blog_audit: Callable[[AdminIdentity, str, str], None] | None = None,
     jobs_repository: GenerationJobRepository | None = None,
     claims_repository: BlogClaimsRepository | None = None,
@@ -610,9 +612,7 @@ def create_blog_idea_routes(
         identity_payload: Annotated[
             str | None, Header(alias=ADMIN_IDENTITY_HEADER)
         ] = None,
-        signature: Annotated[
-            str | None, Header(alias=ADMIN_SIGNATURE_HEADER)
-        ] = None,
+        signature: Annotated[str | None, Header(alias=ADMIN_SIGNATURE_HEADER)] = None,
     ) -> AdminIdentity:
         return require_admin_identity_with_settings(
             settings, identity_payload, signature
@@ -639,7 +639,9 @@ def create_blog_idea_routes(
         _identity: AdminIdentity = Depends(require_identity),
     ) -> BlogClaim:
         if claims_repository is None:
-            raise HTTPException(status_code=500, detail="Claims repository not configured")
+            raise HTTPException(
+                status_code=500, detail="Claims repository not configured"
+            )
         updated = claims_repository.update(claim_id, payload)
         if updated is None:
             raise HTTPException(status_code=404, detail="Claim not found")
@@ -692,7 +694,7 @@ def create_blog_idea_routes(
         from backend.app.tasks import generate_blog_idea_task
 
         if isinstance(repository, PostgresBlogIdeaRepository):
-            task = generate_blog_idea_task.delay(
+            task = cast(Any, generate_blog_idea_task).delay(
                 project_name=payload.project_name,
                 project_summary=payload.project_summary,
                 ai_capabilities=payload.ai_capabilities,
@@ -708,7 +710,7 @@ def create_blog_idea_routes(
                 track_job=jobs_repository is not None,
             )
 
-        result = generate_blog_idea_task(
+        result = cast(Any, generate_blog_idea_task)(
             project_name=payload.project_name,
             project_summary=payload.project_summary,
             ai_capabilities=payload.ai_capabilities,
@@ -739,7 +741,7 @@ def create_blog_idea_routes(
         from backend.app.tasks import generate_blog_outline_task
 
         if isinstance(repository, PostgresBlogIdeaRepository):
-            task = generate_blog_outline_task.delay(idea_id=idea_id)
+            task = cast(Any, generate_blog_outline_task).delay(idea_id=idea_id)
             _dispatch_generation_task(
                 stage="outline",
                 idea_id=idea_id,
@@ -749,7 +751,7 @@ def create_blog_idea_routes(
                 track_job=True,
             )
 
-        result = generate_blog_outline_task(idea_id=idea_id)
+        result = cast(Any, generate_blog_outline_task)(idea_id=idea_id)
         return result
 
     @router.post("/{idea_id}/generate-draft")
@@ -773,7 +775,7 @@ def create_blog_idea_routes(
         from backend.app.tasks import generate_blog_draft_task
 
         if isinstance(repository, PostgresBlogIdeaRepository):
-            task = generate_blog_draft_task.delay(idea_id=idea_id)
+            task = cast(Any, generate_blog_draft_task).delay(idea_id=idea_id)
             _dispatch_generation_task(
                 stage="draft",
                 idea_id=idea_id,
@@ -783,7 +785,7 @@ def create_blog_idea_routes(
                 track_job=True,
             )
 
-        result = generate_blog_draft_task(idea_id=idea_id)
+        result = cast(Any, generate_blog_draft_task)(idea_id=idea_id)
         return result
 
     @router.post("/{idea_id}/review-technical")
@@ -808,7 +810,7 @@ def create_blog_idea_routes(
         from backend.app.tasks import generate_technical_review_task
 
         if isinstance(repository, PostgresBlogIdeaRepository):
-            task = generate_technical_review_task.delay(idea_id=idea_id)
+            task = cast(Any, generate_technical_review_task).delay(idea_id=idea_id)
             _dispatch_generation_task(
                 stage="technical_review",
                 idea_id=idea_id,
@@ -818,7 +820,7 @@ def create_blog_idea_routes(
                 track_job=True,
             )
 
-        result = generate_technical_review_task(idea_id=idea_id)
+        result = cast(Any, generate_technical_review_task)(idea_id=idea_id)
         return result
 
     @router.post("/{idea_id}/generate-marketing")
@@ -843,7 +845,7 @@ def create_blog_idea_routes(
         from backend.app.tasks import generate_marketing_metadata_task
 
         if isinstance(repository, PostgresBlogIdeaRepository):
-            task = generate_marketing_metadata_task.delay(idea_id=idea_id)
+            task = cast(Any, generate_marketing_metadata_task).delay(idea_id=idea_id)
             _dispatch_generation_task(
                 stage="marketing",
                 idea_id=idea_id,
@@ -853,7 +855,7 @@ def create_blog_idea_routes(
                 track_job=True,
             )
 
-        result = generate_marketing_metadata_task(idea_id=idea_id)
+        result = cast(Any, generate_marketing_metadata_task)(idea_id=idea_id)
         return result
 
     @router.post("/{idea_id}/publish-to-blog")
@@ -909,7 +911,9 @@ def create_blog_idea_routes(
         _identity: AdminIdentity = Depends(require_identity),
     ) -> list[BlogClaim]:
         if claims_repository is None:
-            raise HTTPException(status_code=500, detail="Claims repository not configured")
+            raise HTTPException(
+                status_code=500, detail="Claims repository not configured"
+            )
         idea = repository.get_by_id(idea_id)
         if idea is None:
             raise HTTPException(status_code=404, detail="Blog idea not found")

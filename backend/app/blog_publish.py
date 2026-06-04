@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING
 
 from fastapi import HTTPException
 
-from backend.app.blog import BlogPostCreate, BlogRepository
+from backend.app.blog import BlogPostCreate, BlogRepositoryProtocol
 from backend.app.blog_ideas import BlogIdea
 
 if TYPE_CHECKING:
@@ -27,11 +27,11 @@ def slugify_title(text: str) -> str:
     return slug[:160]
 
 
-def _existing_slugs(blog_repository: BlogRepository) -> set[str]:
+def _existing_slugs(blog_repository: BlogRepositoryProtocol) -> set[str]:
     return {post.slug for post in blog_repository.list_all()}
 
 
-def unique_slug(base: str, blog_repository: BlogRepository) -> str:
+def unique_slug(base: str, blog_repository: BlogRepositoryProtocol) -> str:
     taken = _existing_slugs(blog_repository)
     candidate = base
     suffix = 2
@@ -40,7 +40,9 @@ def unique_slug(base: str, blog_repository: BlogRepository) -> str:
         candidate = f"{stem}-{suffix}"
         suffix += 1
     if not _SLUG_RE.match(candidate):
-        raise HTTPException(status_code=400, detail="Could not derive a valid blog post slug")
+        raise HTTPException(
+            status_code=400, detail="Could not derive a valid blog post slug"
+        )
     return candidate
 
 
@@ -61,12 +63,18 @@ def validate_idea_ready_to_publish(idea: BlogIdea) -> None:
             detail="Publishing requires approved marketing metadata",
         )
     if not idea.draft_markdown or not idea.draft_markdown.strip():
-        raise HTTPException(status_code=400, detail="Publishing requires draft markdown content")
+        raise HTTPException(
+            status_code=400, detail="Publishing requires draft markdown content"
+        )
     if not idea.marketing_metadata:
-        raise HTTPException(status_code=400, detail="Publishing requires marketing metadata")
+        raise HTTPException(
+            status_code=400, detail="Publishing requires marketing metadata"
+        )
 
 
-def build_blog_post_create(idea: BlogIdea, blog_repository: BlogRepository) -> BlogPostCreate:
+def build_blog_post_create(
+    idea: BlogIdea, blog_repository: BlogRepositoryProtocol
+) -> BlogPostCreate:
     metadata = idea.marketing_metadata or {}
     title = (metadata.get("seo_title") or idea.title).strip()
     excerpt = (metadata.get("meta_description") or idea.article_goal).strip()
@@ -77,14 +85,14 @@ def build_blog_post_create(idea: BlogIdea, blog_repository: BlogRepository) -> B
         title=title[:240],
         excerpt=excerpt,
         author_name=_DEFAULT_AUTHOR,
-        content_markdown=idea.draft_markdown.strip(),
+        content_markdown=(idea.draft_markdown or "").strip(),
     )
 
 
 def publish_idea_to_blog(
     idea_id: str,
     ideas_repository: BlogIdeaRepository,
-    blog_repository: BlogRepository,
+    blog_repository: BlogRepositoryProtocol,
     claims_repository: BlogClaimsRepository | None = None,
 ) -> tuple[str, str, bool]:
     """Create and publish a blog post from an approved idea.
