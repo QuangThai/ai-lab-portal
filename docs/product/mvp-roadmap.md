@@ -15,7 +15,7 @@ validation contracts before implementation.
 | MVP 2 | AI-assisted blog | **Implemented** | US-025–US-035, US-043 |
 | MVP 3 | AI News (official sources) | **Implemented** | US-036–US-041 |
 | MVP 4 | User-submitted links | **Implemented** | US-044–US-046 |
-| MVP 5 | X/Twitter intelligence | Blocked | — |
+| MVP 5 | X/Twitter intelligence | Blocked — planning stub only | `docs/stories/epics/E05-x-twitter/README.md` |
 
 ---
 
@@ -162,13 +162,21 @@ Deferred (post-MVP 4):
 
 ## MVP 5: X/Twitter Intelligence
 
-**Status: Blocked** — entry criteria not met.
+**Status: Blocked — planning stub only** (2026-06-04).
 
-Objective: add social intelligence only after provider strategy is accepted.
+Objective: evaluate social intelligence as a future AI News source class only after provider, data, terms, cost, and moderation risks are accepted.
+
+Planning stub:
+
+- `docs/stories/epics/E05-x-twitter/README.md`
 
 Entry criteria:
 
-- Provider strategy chosen.
+- Provider strategy chosen and documented in a durable decision record.
 - Source account and keyword list defined.
-- Required and nullable fields documented.
+- Required and nullable fields documented, including engagement and author metadata semantics.
 - Rate limits, budget, provider terms, fallback behavior, and risk owner agreed.
+- Moderation, attribution, storage, and display policy accepted.
+- Fake-provider validation plan exists before any real provider implementation.
+
+Non-goal for this phase: do not implement X/Twitter ingestion, schema, provider calls, or UI until the entry criteria are met.
