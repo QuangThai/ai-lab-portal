@@ -25,9 +25,21 @@ def _admin_headers() -> dict[str, str]:
     }
 
 
+def _test_app() -> TestClient:
+    from backend.app.contact import InMemoryContactMessageRepository
+    from backend.app.projects import InMemoryProjectRepository
+    from backend.app.notifications import InMemoryNotificationRepository
+    app = create_app(
+        Settings(environment="test"),
+        contact_repository=InMemoryContactMessageRepository(),
+        project_repository=InMemoryProjectRepository(),
+        notification_repository=InMemoryNotificationRepository(),
+    )
+    return TestClient(app)
+
+
 def test_dashboard_stats_returns_counts() -> None:
-    app = create_app()
-    client = TestClient(app)
+    client = _test_app()
     resp = client.get("/admin/dashboard/stats", headers=_admin_headers())
     assert resp.status_code == 200
     data = resp.json()
@@ -41,15 +53,13 @@ def test_dashboard_stats_returns_counts() -> None:
 
 
 def test_dashboard_stats_requires_auth() -> None:
-    app = create_app()
-    client = TestClient(app)
+    client = _test_app()
     resp = client.get("/admin/dashboard/stats")
     assert resp.status_code == 401
 
 
 def test_dashboard_stats_has_expected_keys() -> None:
-    app = create_app()
-    client = TestClient(app)
+    client = _test_app()
     resp = client.get("/admin/dashboard/stats", headers=_admin_headers())
     assert resp.status_code == 200
     data = resp.json()
@@ -57,6 +67,7 @@ def test_dashboard_stats_has_expected_keys() -> None:
         "blog_drafts", "blog_published", "blog_total",
         "ideas_pending", "ideas_approved", "ideas_total",
         "showcases_drafts", "showcases_published", "showcases_total",
+        "projects_drafts", "projects_published", "projects_total",
         "news_published", "recent_activity",
     }
     assert set(data.keys()) == expected_keys
