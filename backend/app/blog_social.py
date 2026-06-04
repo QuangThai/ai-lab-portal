@@ -21,6 +21,7 @@ from backend.app.admin_boundary import (
 from backend.app.blog import BlogRepositoryProtocol
 from backend.app.database import (
     blog_bookmarks as bookmarks_table,
+    blog_comment_reactions as comment_reactions_table,
     blog_comments as comments_table,
     blog_reactions as reactions_table,
 )
@@ -82,6 +83,8 @@ class BlogCommentPublic(BaseModel):
     content: str
     parent_id: str | None = None
     created_at: datetime
+    reaction_count: int = 0
+    user_reacted: bool = False
 
 
 class BlogSocialStats(BaseModel):
@@ -159,6 +162,27 @@ class BlogSocialRepository(ABC):
     @abstractmethod
     def set_comment_status(self, comment_id: str, status: str) -> BlogComment | None: ...
 
+    # ── Comment reactions ──
+
+    @abstractmethod
+    def get_comment_reaction_count(self, comment_id: str) -> int: ...
+
+    @abstractmethod
+    def has_user_reacted_to_comment(self, comment_id: str, user_id: str) -> bool: ...
+
+    @abstractmethod
+    def toggle_comment_reaction(self, comment_id: str, user_id: str, user_email: str | None) -> bool:
+        """Returns True if reaction added, False if removed."""
+        ...
+
+    # ── Comment edit/delete ──
+
+    @abstractmethod
+    def update_comment_content(self, comment_id: str, content: str) -> BlogComment | None: ...
+
+    @abstractmethod
+    def delete_comment(self, comment_id: str) -> bool: ...
+
 
 # ─── InMemory Repository ──────────────────────────────────────────────────────
 
@@ -172,6 +196,7 @@ class InMemoryBlogSocialRepository(BlogSocialRepository):
         self._reactions: dict[str, BlogReaction] = {}  # id -> reaction
         self._bookmarks: dict[str, BlogBookmark] = {}
         self._comments: dict[str, BlogComment] = {}
+        self._comment_reactions: dict[str, dict[str, str]] = {}  # comment_id -> {user_id -> reaction_id}
 
     # ── Reactions ──
 
@@ -285,6 +310,43 @@ class InMemoryBlogSocialRepository(BlogSocialRepository):
         comment.status = status  # type: ignore[assignment]
         comment.updated_at = _now()
         return comment
+
+    # ── Comment reactions (InMemory) ──
+
+    def get_comment_reaction_count(self, comment_id: str) -> int:
+        reactions = self._comment_reactions.get(comment_id, {})
+        return len(reactions)
+
+    def has_user_reacted_to_comment(self, comment_id: str, user_id: str) -> bool:
+        reactions = self._comment_reactions.get(comment_id, {})
+        return user_id in reactions
+
+    def toggle_comment_reaction(self, comment_id: str, user_id: str, user_email: str | None) -> bool:
+        if comment_id not in self._comment_reactions:
+            self._comment_reactions[comment_id] = {}
+        if user_id in self._comment_reactions[comment_id]:
+            del self._comment_reactions[comment_id][user_id]
+            return False
+        self._comment_reactions[comment_id][user_id] = f"cmt_rxn_{uuid4().hex}"
+        return True
+
+    # ── Comment edit/delete (InMemory) ──
+
+    def update_comment_content(self, comment_id: str, content: str) -> BlogComment | None:
+        comment = self._comments.get(comment_id)
+        if comment is None:
+            return None
+        comment.content = content
+        comment.updated_at = _now()
+        return comment
+
+    def delete_comment(self, comment_id: str) -> bool:
+        if comment_id in self._comments:
+            del self._comments[comment_id]
+            # Clean up reactions
+            self._comment_reactions.pop(comment_id, None)
+            return True
+        return False
 
 
 # ─── Postgres Repository ─────────────────────────────────────────────────────
@@ -481,6 +543,84 @@ class PostgresBlogSocialRepository(BlogSocialRepository):
             row = result.fetchone()
         return self._row_to_comment(row) if row else None
 
+    # ── Comment reactions (Postgres) ──
+
+    def get_comment_reaction_count(self, comment_id: str) -> int:
+        with self._conn() as conn:
+            row = conn.execute(
+                select(func.count())
+                .select_from(comment_reactions_table)
+                .where(comment_reactions_table.c.comment_id == comment_id)
+            ).scalar()
+        return row or 0
+
+    def has_user_reacted_to_comment(self, comment_id: str, user_id: str) -> bool:
+        with self._conn() as conn:
+            row = conn.execute(
+                select(comment_reactions_table.c.id)
+                .where(
+                    comment_reactions_table.c.comment_id == comment_id,
+                    comment_reactions_table.c.user_id == user_id,
+                )
+            ).first()
+        return row is not None
+
+    def toggle_comment_reaction(self, comment_id: str, user_id: str, user_email: str | None) -> bool:
+        with self._conn() as conn:
+            existing = conn.execute(
+                select(comment_reactions_table.c.id)
+                .where(
+                    comment_reactions_table.c.comment_id == comment_id,
+                    comment_reactions_table.c.user_id == user_id,
+                )
+            ).first()
+            if existing:
+                conn.execute(comment_reactions_table.delete().where(comment_reactions_table.c.id == existing.id))
+                conn.commit()
+                return False
+            conn.execute(
+                comment_reactions_table.insert().values(
+                    id=f"cmt_rxn_{uuid4().hex}",
+                    comment_id=comment_id,
+                    user_id=user_id,
+                    user_email=user_email,
+                    created_at=_now(),
+                )
+            )
+            conn.commit()
+        return True
+
+    # ── Comment edit/delete (Postgres) ──
+
+    def update_comment_content(self, comment_id: str, content: str) -> BlogComment | None:
+        with self._conn() as conn:
+            result = conn.execute(
+                update(comments_table)
+                .where(comments_table.c.id == comment_id)
+                .values(content=content, updated_at=_now())
+                .returning(*comments_table.c)
+            )
+            conn.commit()
+            row = result.fetchone()
+        return self._row_to_comment(row) if row else None
+
+    def delete_comment(self, comment_id: str) -> bool:
+        with self._conn() as conn:
+            # Delete reactions first
+            conn.execute(
+                comment_reactions_table.delete().where(
+                    comment_reactions_table.c.comment_id == comment_id
+                )
+            )
+            # Delete the comment itself
+            result = conn.execute(
+                comments_table.delete()
+                .where(comments_table.c.id == comment_id)
+                .returning(comments_table.c.id)
+            )
+            conn.commit()
+            return result.fetchone() is not None
+
     @staticmethod
     def _row_to_comment(row) -> BlogComment:
         return BlogComment(
@@ -588,6 +728,7 @@ def create_blog_social_routes(
                     content=c.content,
                     parent_id=c.parent_id,
                     created_at=c.created_at,
+                    reaction_count=social_repo.get_comment_reaction_count(c.id),
                 )
             )
         return result
@@ -617,6 +758,76 @@ def create_blog_social_routes(
             content=body.content,
             parent_id=body.parent_id,
         )
+
+    # ── Comment reactions ──
+
+    @router.post("/{slug}/comments/{comment_id}/react")
+    async def toggle_comment_reaction(
+        slug: str,
+        comment_id: str,
+        _identity: SignedIdentity = Depends(require_user),
+    ) -> dict:
+        post = blog_repo.get_by_slug(slug)
+        if post is None:
+            raise HTTPException(status_code=404, detail="Post not found")
+        comment = social_repo.get_comment_by_id(comment_id)
+        if comment is None or comment.post_id != post.id:
+            raise HTTPException(status_code=404, detail="Comment not found")
+        is_reacted = social_repo.toggle_comment_reaction(comment_id, _identity.user_id, _identity.email)
+        return {
+            "reacted": is_reacted,
+            "count": social_repo.get_comment_reaction_count(comment_id),
+        }
+
+    # ── Comment edit/delete ──
+
+    @router.patch("/{slug}/comments/{comment_id}")
+    async def edit_comment(
+        slug: str,
+        comment_id: str,
+        body: BlogCommentCreate,
+        _identity: SignedIdentity = Depends(require_user),
+    ) -> BlogCommentPublic:
+        post = blog_repo.get_by_slug(slug)
+        if post is None:
+            raise HTTPException(status_code=404, detail="Post not found")
+        comment = social_repo.get_comment_by_id(comment_id)
+        if comment is None or comment.post_id != post.id:
+            raise HTTPException(status_code=404, detail="Comment not found")
+        if comment.user_id != _identity.user_id:
+            raise HTTPException(status_code=403, detail="Not your comment")
+        updated = social_repo.update_comment_content(comment_id, body.content)
+        if updated is None:
+            raise HTTPException(status_code=500, detail="Failed to update comment")
+        profile = profile_repo.get_by_user_id(comment.user_id) if profile_repo else None
+        return BlogCommentPublic(
+            id=updated.id,
+            user_id=updated.user_id,
+            user_name=profile.display_name if profile else updated.user_name,
+            avatar_url=profile.avatar_url if profile else None,
+            content=updated.content,
+            parent_id=updated.parent_id,
+            created_at=updated.created_at,
+            reaction_count=social_repo.get_comment_reaction_count(comment_id),
+            user_reacted=social_repo.has_user_reacted_to_comment(comment_id, _identity.user_id),
+        )
+
+    @router.delete("/{slug}/comments/{comment_id}")
+    async def delete_comment(
+        slug: str,
+        comment_id: str,
+        _identity: SignedIdentity = Depends(require_user),
+    ) -> dict:
+        post = blog_repo.get_by_slug(slug)
+        if post is None:
+            raise HTTPException(status_code=404, detail="Post not found")
+        comment = social_repo.get_comment_by_id(comment_id)
+        if comment is None or comment.post_id != post.id:
+            raise HTTPException(status_code=404, detail="Comment not found")
+        if comment.user_id != _identity.user_id:
+            raise HTTPException(status_code=403, detail="Not your comment")
+        social_repo.delete_comment(comment_id)
+        return {"deleted": True}
 
     @router.get("/{slug}/user-reactions")
     async def get_user_reactions(

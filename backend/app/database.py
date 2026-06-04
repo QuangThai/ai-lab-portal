@@ -365,6 +365,19 @@ blog_comments = Table(
     Index("ix_blog_comments_status", "status"),
 )
 
+blog_comment_reactions = Table(
+    "blog_comment_reactions",
+    metadata,
+    Column("id", String(64), primary_key=True),
+    Column("comment_id", String(64), ForeignKey("blog_comments.id", ondelete="CASCADE"), nullable=False),
+    Column("user_id", String(255), nullable=False),
+    Column("user_email", String(320), nullable=True),
+    Column("emoji", String(32), nullable=False, server_default=text("'❤'")),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("comment_id", "user_id", name="uq_blog_cmt_react_comment_user"),
+    Index("ix_blog_comment_reactions_comment_id", "comment_id"),
+)
+
 contact_messages = Table(
     "contact_messages",
     metadata,
