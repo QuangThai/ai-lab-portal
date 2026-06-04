@@ -42,6 +42,20 @@ blog_post_tags = Table(
     Index("ix_blog_post_tags_tag_id", "tag_id"),
 )
 
+user_profiles = Table(
+    "user_profiles",
+    metadata,
+    Column("user_id", String(255), ForeignKey("user.id", ondelete="CASCADE"), primary_key=True),
+    Column("display_name", String(120), nullable=False),
+    Column("bio", Text, nullable=True),
+    Column("avatar_url", String(2048), nullable=True),
+    Column("website_url", String(2048), nullable=True),
+    Column("github_url", String(2048), nullable=True),
+    Column("linkedin_url", String(2048), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=False),
+)
+
 showcases = Table(
     "showcases",
     metadata,
