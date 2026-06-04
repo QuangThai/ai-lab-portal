@@ -17,6 +17,7 @@ const navItems = [
   { href: "/showcases", label: "Showcases" },
   { href: "/blog", label: "Blog" },
   { href: "/ai-news", label: "AI News" },
+  { href: "/contact", label: "Contact" },
   { href: "/profile", label: "Profile" },
 ] as const;
 

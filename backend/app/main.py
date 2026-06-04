@@ -14,6 +14,13 @@ from backend.app.admin_boundary import (
     require_user_identity_with_settings,
 )
 from backend.app.ai_runs import AiRunRepository, PostgresAiRunRepository
+from backend.app.contact import (
+    ContactMessageAdmin,
+    ContactMessageCreate,
+    ContactMessageRepository,
+    InMemoryContactMessageRepository,
+    PostgresContactMessageRepository,
+)
 from backend.app.blog import (
     AdminBlogPostDetail,
     AdminBlogPostSummary,
@@ -136,6 +143,7 @@ def create_app(
     blog_tag_repository: BlogTagRepository | None = None,
     user_profile_repository: UserProfileRepository | None = None,
     user_follow_repository: UserFollowRepository | None = None,
+    contact_repository: ContactMessageRepository | None = None,
 ) -> FastAPI:
     resolved_settings = settings or get_settings()
     if resolved_settings.environment == "test":
@@ -154,6 +162,7 @@ def create_app(
         tag_repo = blog_tag_repository or InMemoryBlogTagRepository()
         profile_repo = user_profile_repository or InMemoryUserProfileRepository()
         follow_repo = user_follow_repository or InMemoryUserFollowRepository()
+        contact_repo: ContactMessageRepository = contact_repository or InMemoryContactMessageRepository()
     else:
         engine = create_database_engine(resolved_settings)
         repository = blog_repository or PostgresBlogRepository(engine)
@@ -179,6 +188,7 @@ def create_app(
         tag_repo = blog_tag_repository or PostgresBlogTagRepository(engine)
         profile_repo = user_profile_repository or PostgresUserProfileRepository(engine)
         follow_repo = user_follow_repository or PostgresUserFollowRepository(engine)
+        contact_repo: ContactMessageRepository = contact_repository or PostgresContactMessageRepository(engine)
 
     app = FastAPI(title=resolved_settings.app_name)
     app.state.settings = resolved_settings
@@ -519,6 +529,38 @@ def create_app(
             resolved_settings,
         )
     )
+
+    # Contact messages
+    @app.post("/public/contact")
+    async def submit_contact_message(body: ContactMessageCreate) -> dict[str, str]:
+        msg = contact_repo.create(body)
+        return {"id": msg.id, "status": "received"}
+
+    @app.get("/admin/contact-messages")
+    async def admin_list_contact_messages(
+        _identity: AdminIdentity = Depends(require_configured_admin_identity),
+    ) -> list[ContactMessageAdmin]:
+        return contact_repo.list_all()
+
+    @app.get("/admin/contact-messages/{message_id}")
+    async def admin_get_contact_message(
+        message_id: str,
+        _identity: AdminIdentity = Depends(require_configured_admin_identity),
+    ) -> ContactMessageAdmin:
+        msg = contact_repo.get_by_id(message_id)
+        if msg is None:
+            raise HTTPException(status_code=404, detail="Contact message not found")
+        return msg
+
+    @app.patch("/admin/contact-messages/{message_id}/read")
+    async def admin_mark_contact_message_read(
+        message_id: str,
+        _identity: AdminIdentity = Depends(require_configured_admin_identity),
+    ) -> ContactMessageAdmin:
+        msg = contact_repo.mark_read(message_id)
+        if msg is None:
+            raise HTTPException(status_code=404, detail="Contact message not found")
+        return msg
 
     return app
 

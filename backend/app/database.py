@@ -364,3 +364,15 @@ blog_comments = Table(
     Index("ix_blog_comments_post_id", "post_id"),
     Index("ix_blog_comments_status", "status"),
 )
+
+contact_messages = Table(
+    "contact_messages",
+    metadata,
+    Column("id", String(64), primary_key=True),
+    Column("name", String(200), nullable=False),
+    Column("email", String(320), nullable=False),
+    Column("subject", String(500), nullable=False),
+    Column("message", Text, nullable=False),
+    Column("read_at", DateTime(timezone=True), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+)

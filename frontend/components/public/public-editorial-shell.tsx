@@ -35,6 +35,10 @@ function PublicEditorialFooter() {
           <Link className="transition-colors hover:text-brand" href="/blog">
             Blog
           </Link>
+          <Link className="transition-colors hover:text-brand" href="/contact">
+            Contact
+            Blog
+          </Link>
         </div>
       </div>
     </footer>
