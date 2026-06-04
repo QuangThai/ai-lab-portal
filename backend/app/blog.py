@@ -91,7 +91,7 @@ class BlogRepositoryProtocol(Protocol):
 
     def list_all(self) -> list[AdminBlogPostSummary]: ...
 
-    def list_published(self, *, post_ids: set[str] | None = None, author_user_ids: set[str] | None = None) -> list[BlogPostSummary]: ...
+    def list_published(self, *, post_ids: set[str] | None = None, author_user_ids: set[str] | None = None, q: str | None = None) -> list[BlogPostSummary]: ...
 
     def get_published_by_slug(self, slug: str) -> BlogPostDetail | None: ...
 
@@ -156,7 +156,7 @@ class BlogRepository:
             for post in posts
         ]
 
-    def list_published(self, *, post_ids: set[str] | None = None, author_user_ids: set[str] | None = None) -> list[BlogPostSummary]:
+    def list_published(self, *, post_ids: set[str] | None = None, author_user_ids: set[str] | None = None, q: str | None = None) -> list[BlogPostSummary]:
         posts = [
             post
             for post in self.posts.values()
@@ -164,6 +164,7 @@ class BlogRepository:
             and post.published_at
             and (post_ids is None or post.id in post_ids)
             and (author_user_ids is None or (post.author_user_id is not None and post.author_user_id in author_user_ids))
+            and (q is None or q.lower() in post.title.lower() or q.lower() in (post.excerpt or "").lower())
         ]
         posts.sort(
             key=lambda post: post.published_at or datetime.min.replace(tzinfo=UTC),
@@ -348,7 +349,7 @@ class PostgresBlogRepository:
                 for row in rows
             ]
 
-    def list_published(self, *, post_ids: set[str] | None = None, author_user_ids: set[str] | None = None) -> list[BlogPostSummary]:
+    def list_published(self, *, post_ids: set[str] | None = None, author_user_ids: set[str] | None = None, q: str | None = None) -> list[BlogPostSummary]:
         self.seed_defaults_when_empty()
         with self.engine.begin() as connection:
             filters = [
@@ -363,6 +364,12 @@ class PostgresBlogRepository:
                 if not author_user_ids:
                     return []
                 filters.append(blog_posts.c.author_user_id.in_(author_user_ids))
+            if q:
+                pattern = f"%{q}%"
+                filters.append(
+                    blog_posts.c.title.ilike(pattern)
+                    | blog_posts.c.excerpt.ilike(pattern)
+                )
             rows = connection.execute(
                 select(blog_posts)
                 .where(*filters)

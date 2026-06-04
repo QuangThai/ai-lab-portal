@@ -118,9 +118,10 @@ def list_public_ai_news(
     sources: NewsSourceRepository,
     limit: int = 100,
     topic: str | None = None,
+    q: str | None = None,
 ) -> list[PublicAiNewsSummary]:
     items: list[PublicAiNewsSummary] = []
-    for row in review.list_published(limit=limit):
+    for row in review.list_published(limit=limit, q=q):
         detail = build_public_detail(review_item=row, extracted=extracted, sources=sources)
         if detail is None:
             continue

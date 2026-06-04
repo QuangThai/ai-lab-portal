@@ -418,7 +418,7 @@ class NewsReviewRepository(ABC):
         ...
 
     @abstractmethod
-    def list_published(self, *, limit: int = 100) -> list[NewsReviewItem]:
+    def list_published(self, *, limit: int = 100, q: str | None = None) -> list[NewsReviewItem]:
         ...
 
     @abstractmethod
@@ -550,11 +550,12 @@ class InMemoryNewsReviewRepository(NewsReviewRepository):
         self._rows[review_id] = updated
         return updated
 
-    def list_published(self, *, limit: int = 100) -> list[NewsReviewItem]:
+    def list_published(self, *, limit: int = 100, q: str | None = None) -> list[NewsReviewItem]:
         rows = [
             row
             for row in self._rows.values()
             if row.review_status == "published" and row.published_at is not None and row.slug
+            and (q is None or q.lower() in row.title.lower() or q.lower() in (row.summary or "").lower())
         ]
         rows.sort(key=lambda row: row.published_at or datetime.min.replace(tzinfo=UTC), reverse=True)
         return rows[:limit]
@@ -716,10 +717,17 @@ class PostgresNewsReviewRepository(NewsReviewRepository):
             )
         return self.get_by_id(review_id)
 
-    def list_published(self, *, limit: int = 100) -> list[NewsReviewItem]:
+    def list_published(self, *, limit: int = 100, q: str | None = None) -> list[NewsReviewItem]:
+        filters = [review_table.c.review_status == "published"]
+        if q:
+            pattern = f"%{q}%"
+            filters.append(
+                review_table.c.title.ilike(pattern)
+                | review_table.c.summary.ilike(pattern)
+            )
         stmt = (
             select(review_table)
-            .where(review_table.c.review_status == "published")
+            .where(*filters)
             .order_by(review_table.c.published_at.desc())
             .limit(limit)
         )
