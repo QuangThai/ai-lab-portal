@@ -10,6 +10,7 @@ import {
   FileText,
   LayoutDashboard,
   Lightbulb,
+  Link as LinkIcon,
   Moon,
   Newspaper,
   PencilLine,
@@ -22,7 +23,7 @@ import { useTheme } from "next-themes";
 import { adminDisplayTitleClass } from "@/components/admin/admin-ui";
 import { cn } from "@/lib/utils";
 
-type NavKey = "dashboard" | "blog" | "editor" | "showcases" | "showcase-editor" | "ideas" | "news" | "news-review";
+type NavKey = "dashboard" | "blog" | "editor" | "showcases" | "showcase-editor" | "ideas" | "news" | "news-review" | "submitted-links";
 
 type Props = { active: NavKey; children: ReactNode };
 
@@ -34,6 +35,7 @@ const navItems: Array<{ key: NavKey; href: string; label: string; icon: ReactNod
   { key: "showcases", href: "/admin/showcases", label: "Showcases", icon: <Briefcase className="size-4" /> },
   { key: "showcase-editor", href: "/admin/showcases/editor", label: "New showcase", icon: <PlusCircle className="size-4" /> },
   { key: "news-review", href: "/admin/news-review", label: "News review", icon: <Newspaper className="size-4" /> },
+  { key: "submitted-links", href: "/admin/news/submitted-links", label: "Submitted links", icon: <LinkIcon className="size-4" /> },
   { key: "news", href: "/admin/news-sources", label: "News sources", icon: <Rss className="size-4" /> },
 ];
 
