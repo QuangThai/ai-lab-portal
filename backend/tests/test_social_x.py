@@ -10,6 +10,7 @@ from backend.app.social_x import (
     FakeXTwitterProvider,
     NormalizedSocialPost,
     SocialPostSourceScope,
+    filter_social_link_candidate,
     normalize_xquik_tweet,
 )
 
@@ -92,3 +93,40 @@ def test_normalized_social_post_rejects_non_http_urls() -> None:
             ),
             raw_payload={},
         )
+
+
+def test_filter_social_link_candidate_accepts_ai_post_with_entity_url() -> None:
+    post = normalize_xquik_tweet(FAKE_XQUIK_ROWS[0], scope=_scope())
+
+    decision = filter_social_link_candidate(post)
+
+    assert decision.should_ingest is True
+    assert decision.topic == "agents"
+    assert decision.priority == "high"
+    assert [str(url) for url in decision.urls_to_extract] == ["https://openai.com/research/agents"]
+    assert decision.requires_human_review is True
+    assert decision.risk_flags == []
+
+
+def test_filter_social_link_candidate_rejects_posts_without_extractable_urls() -> None:
+    post = normalize_xquik_tweet(FAKE_XQUIK_ROWS[1], scope=_scope())
+
+    decision = filter_social_link_candidate(post)
+
+    assert decision.should_ingest is False
+    assert decision.topic == "research"
+    assert decision.urls_to_extract == []
+    assert decision.requires_human_review is False
+    assert "no extractable source URL" in decision.reason
+
+
+def test_filter_social_link_candidate_rejects_engagement_bait() -> None:
+    row = dict(FAKE_XQUIK_ROWS[0])
+    row["text"] = "AI agents are here, buy now and like and retweet https://openai.com/research/agents"
+    post = normalize_xquik_tweet(row, scope=_scope())
+
+    decision = filter_social_link_candidate(post)
+
+    assert decision.should_ingest is False
+    assert decision.urls_to_extract == []
+    assert "spam_or_engagement_bait" in decision.risk_flags

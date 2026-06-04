@@ -103,8 +103,8 @@ These are candidates, not approved implementation stories:
 2. **US-053 X/Twitter source contract and fake fixtures** — implemented
    - Defined normalized social post contract, Apify Xquik-like fake provider fixtures, and no-real-provider tests in `backend/app/social_x.py` / `backend/tests/test_social_x.py`.
 
-3. **US-054 AI social link filter contract**
-   - Define structured output for `should_ingest`, `reason`, `topic`, `priority`, `risk_flags`, `urls_to_extract`, and `requires_human_review`.
+3. **US-054 AI social link filter contract** — implemented
+   - Defined deterministic fake-first structured output for `should_ingest`, `reason`, `topic`, `priority`, `risk_flags`, `urls_to_extract`, and `requires_human_review`.
 
 4. **US-055 X/Twitter ingestion spike behind fake provider**
    - Add ingestion path using fake provider only, with no real provider calls.

@@ -16,6 +16,43 @@ from pydantic import BaseModel, Field, HttpUrl
 SocialProviderName = Literal["apify_xquik", "apify_twitter_scraper", "fake"]
 SocialSourceKind = Literal["handle", "search", "list", "tweet_url"]
 SocialPostKind = Literal["original", "quote", "reply", "repost", "unknown"]
+SocialFilterTopic = Literal[
+    "models",
+    "agents",
+    "research",
+    "policy",
+    "infrastructure",
+    "product",
+    "funding",
+    "security",
+    "general",
+]
+SocialFilterPriority = Literal["low", "medium", "high"]
+
+_AI_SIGNAL_KEYWORDS = (
+    "ai",
+    "llm",
+    "agent",
+    "model",
+    "openai",
+    "anthropic",
+    "gemini",
+    "benchmark",
+    "eval",
+    "inference",
+    "training",
+    "rag",
+)
+_SPAM_OR_LOW_SIGNAL_PATTERNS = (
+    "free money",
+    "casino",
+    "buy now",
+    "limited offer",
+    "like and retweet",
+    "engagement bait",
+)
+_RUMOR_PATTERNS = ("rumor", "leak", "unconfirmed", "sources say")
+_DRAMA_PATTERNS = ("drama", "dunk", "ratio", "beef")
 
 
 class SocialEngagementMetrics(BaseModel):
@@ -67,6 +104,18 @@ class NormalizedSocialPost(BaseModel):
     conversation_id: str | None = None
     source_scope: SocialPostSourceScope
     raw_payload: dict[str, Any]
+
+
+class SocialLinkFilterDecision(BaseModel):
+    """Structured social pre-filter output before linked-page extraction."""
+
+    should_ingest: bool
+    reason: str = Field(min_length=1)
+    topic: SocialFilterTopic
+    priority: SocialFilterPriority
+    risk_flags: list[str] = Field(default_factory=list)
+    urls_to_extract: list[HttpUrl] = Field(default_factory=list)
+    requires_human_review: bool
 
 
 class SocialProviderProtocol(Protocol):
@@ -131,6 +180,102 @@ def _post_kind_from_xquik(row: dict[str, Any]) -> SocialPostKind:
     if row.get("isRetweet") is True:
         return "repost"
     return "original"
+
+
+def _has_any(text: str, patterns: tuple[str, ...]) -> bool:
+    lower = text.lower()
+    return any(pattern in lower for pattern in patterns)
+
+
+def _topic_for_text(text: str) -> SocialFilterTopic:
+    lower = text.lower()
+    if "agent" in lower:
+        return "agents"
+    if "benchmark" in lower or "eval" in lower or "research" in lower:
+        return "research"
+    if "gpu" in lower or "inference" in lower or "training" in lower:
+        return "infrastructure"
+    if "security" in lower or "vulnerability" in lower:
+        return "security"
+    if "policy" in lower or "regulation" in lower:
+        return "policy"
+    if "funding" in lower or "raises" in lower:
+        return "funding"
+    if "launch" in lower or "ship" in lower or "product" in lower:
+        return "product"
+    if "model" in lower or "llm" in lower:
+        return "models"
+    return "general"
+
+
+def _extractable_urls(post: NormalizedSocialPost) -> list[str]:
+    seen: set[str] = set()
+    urls: list[str] = []
+    for entity in post.urls:
+        value = str(entity.expanded_url or entity.url)
+        if value not in seen:
+            seen.add(value)
+            urls.append(value)
+    return urls
+
+
+def filter_social_link_candidate(post: NormalizedSocialPost) -> SocialLinkFilterDecision:
+    """Heuristic fake-first social link filter used before article extraction.
+
+    This is intentionally local and deterministic for US-054. Future LLM-backed
+    implementations must preserve the same structured output and keep human
+    review required for every accepted social item.
+    """
+
+    text = f"{post.post_text}\n{post.quoted_post_text or ''}"
+    risk_flags: list[str] = []
+    if _has_any(text, _SPAM_OR_LOW_SIGNAL_PATTERNS):
+        risk_flags.append("spam_or_engagement_bait")
+    if _has_any(text, _RUMOR_PATTERNS):
+        risk_flags.append("unsupported_rumor")
+    if _has_any(text, _DRAMA_PATTERNS):
+        risk_flags.append("personal_drama")
+    if post.author_verified is False and (post.author_followers_count or 0) < 1_000:
+        risk_flags.append("low_author_credibility")
+
+    ai_relevant = _has_any(text, _AI_SIGNAL_KEYWORDS)
+    urls_to_extract = _extractable_urls(post)
+    should_ingest = ai_relevant and bool(urls_to_extract) and "spam_or_engagement_bait" not in risk_flags
+
+    if not ai_relevant:
+        reason = "Rejected because the post has weak AI/LLM relevance."
+    elif not urls_to_extract:
+        reason = "Rejected because no extractable source URL was found in the post entities."
+    elif "spam_or_engagement_bait" in risk_flags:
+        reason = "Rejected because the post looks promotional or engagement-bait heavy."
+    else:
+        reason = "Accepted for linked-page extraction with mandatory human review."
+
+    engagement_total = sum(
+        value or 0
+        for value in (
+            post.engagement.like_count,
+            post.engagement.repost_count,
+            post.engagement.reply_count,
+            post.engagement.quote_count,
+            post.engagement.bookmark_count,
+        )
+    )
+    priority: SocialFilterPriority = "low"
+    if should_ingest and (engagement_total >= 500 or post.author_verified is True):
+        priority = "high"
+    elif should_ingest or ai_relevant:
+        priority = "medium"
+
+    return SocialLinkFilterDecision(
+        should_ingest=should_ingest,
+        reason=reason,
+        topic=_topic_for_text(text),
+        priority=priority,
+        risk_flags=risk_flags,
+        urls_to_extract=urls_to_extract if should_ingest else [],
+        requires_human_review=should_ingest,
+    )
 
 
 def normalize_xquik_tweet(row: dict[str, Any], *, scope: SocialPostSourceScope) -> NormalizedSocialPost:
