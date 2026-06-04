@@ -5,9 +5,11 @@ export type ShowcaseSummary = {
   industry: string | null;
   useCase: string | null;
   publishedAt: string;
+  imageUrl?: string | null;
 };
 
 export type ShowcaseDetail = ShowcaseSummary & {
+  id: string;
   contentMarkdown: string;
 };
 
@@ -18,9 +20,11 @@ type ApiShowcaseSummary = {
   industry: string | null;
   use_case: string | null;
   published_at: string;
+  image_url?: string | null;
 };
 
 type ApiShowcaseDetail = ApiShowcaseSummary & {
+  id: string;
   content_markdown: string;
 };
 
@@ -34,12 +38,14 @@ function toSummary(item: ApiShowcaseSummary): ShowcaseSummary {
     industry: item.industry,
     useCase: item.use_case,
     publishedAt: item.published_at,
+    imageUrl: item.image_url,
   };
 }
 
 function toDetail(item: ApiShowcaseDetail): ShowcaseDetail {
   return {
     ...toSummary(item),
+    id: item.id,
     contentMarkdown: item.content_markdown,
   };
 }

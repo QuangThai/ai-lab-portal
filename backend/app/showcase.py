@@ -20,6 +20,7 @@ class Showcase(BaseModel):
     status: ShowcaseStatus
     published_at: datetime | None
     content_markdown: str
+    image_url: str | None = None
 
 
 class ShowcaseCreate(BaseModel):
@@ -29,6 +30,7 @@ class ShowcaseCreate(BaseModel):
     industry: str | None = Field(default=None, max_length=120)
     use_case: str | None = Field(default=None, max_length=240)
     content_markdown: str = Field(min_length=1)
+    image_url: str | None = Field(default=None, max_length=2048)
 
 
 class ShowcaseUpdate(BaseModel):
@@ -38,6 +40,7 @@ class ShowcaseUpdate(BaseModel):
     industry: str | None = Field(default=None, max_length=120)
     use_case: str | None = Field(default=None, max_length=240)
     content_markdown: str | None = Field(default=None, min_length=1)
+    image_url: str | None = Field(default=None, max_length=2048)
 
 
 class ShowcaseSummary(BaseModel):
@@ -47,9 +50,11 @@ class ShowcaseSummary(BaseModel):
     industry: str | None
     use_case: str | None
     published_at: datetime
+    image_url: str | None = None
 
 
 class ShowcaseDetail(ShowcaseSummary):
+    id: str
     content_markdown: str
 
 
@@ -59,6 +64,7 @@ class AdminShowcaseSummary(BaseModel):
     title: str
     status: ShowcaseStatus
     published_at: datetime | None
+    image_url: str | None = None
 
 
 class AdminShowcaseDetail(AdminShowcaseSummary):
@@ -282,11 +288,16 @@ def _to_public_summary(item: Showcase) -> ShowcaseSummary:
         industry=item.industry,
         use_case=item.use_case,
         published_at=item.published_at,
+        image_url=item.image_url,
     )
 
 
 def _to_public_detail(item: Showcase) -> ShowcaseDetail:
-    return ShowcaseDetail(**_to_public_summary(item).model_dump(), content_markdown=item.content_markdown)
+    return ShowcaseDetail(
+        **_to_public_summary(item).model_dump(),
+        id=item.id,
+        content_markdown=item.content_markdown,
+    )
 
 
 DEFAULT_SHOWCASES: tuple[Showcase, ...] = (

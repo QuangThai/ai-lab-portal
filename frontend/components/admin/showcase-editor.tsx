@@ -1,7 +1,7 @@
 "use client";
 
-import { useActionState, useState } from "react";
-import { Save, Globe, FileText } from "lucide-react";
+import { useActionState, useEffect, useReducer, useRef, useState } from "react";
+import { Globe, Pencil, Save, FileText } from "lucide-react";
 
 import type { ShowcaseEditorActionState } from "@/app/admin/showcases/editor/actions";
 import { AdminCard, AdminCardBody, AdminCardSection, AdminWorkflowCard } from "@/components/admin/admin-card";
@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 type ShowcaseEditorProps = {
   initialContentMarkdown?: string;
   initialHeroSummary?: string;
+  initialImageUrl?: string;
   initialIndustry?: string;
   initialShowcaseId?: string;
   initialSlug?: string;
@@ -41,9 +42,56 @@ const initialActionState: ShowcaseEditorActionState = {
   status: "idle",
 };
 
+function slugify(text: string): string {
+  return (
+    text
+      .toLowerCase()
+      .trim()
+      .replace(/[^\w\s-]/g, "")
+      .replace(/[\s_]+/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80) || "untitled"
+  );
+}
+
+type SlugState = {
+  slug: string;
+  showEditor: boolean;
+  manuallyEdited: boolean;
+};
+
+type SlugAction =
+  | { type: "init"; slug: string }
+  | { type: "title_changed"; title: string }
+  | { type: "manual_edit"; value: string }
+  | { type: "toggle_editor" }
+  | { type: "reset"; title: string };
+
+function slugReducer(state: SlugState, action: SlugAction): SlugState {
+  switch (action.type) {
+    case "init":
+      return { slug: action.slug, showEditor: false, manuallyEdited: false };
+    case "title_changed":
+      if (state.manuallyEdited) return state;
+      return { ...state, slug: slugify(action.title) };
+    case "manual_edit":
+      return { ...state, slug: action.value, manuallyEdited: true };
+    case "toggle_editor":
+      return { ...state, showEditor: !state.showEditor };
+    case "reset":
+      return { slug: slugify(action.title), showEditor: false, manuallyEdited: false };
+    default:
+      return state;
+  }
+}
+
+const SAVED_INDICATOR_DELAY_MS = 1_500;
+
 export function ShowcaseEditor({
   initialContentMarkdown = "",
   initialHeroSummary = "A client-ready AI Lab delivery story with human review at the center.",
+  initialImageUrl = "",
   initialIndustry = "Engineering",
   initialShowcaseId = "",
   initialSlug,
@@ -61,23 +109,103 @@ export function ShowcaseEditor({
     showcaseId: initialShowcaseId,
   });
   const visibleState = publishState.status !== "idle" ? publishState : saveState;
-  const [slug] = useState(() => initialSlug ?? `new-ai-lab-showcase-${Date.now()}`);
+
+  // Slug state managed via reducer
+  const [slugState, dispatchSlug] = useReducer(slugReducer, {
+    slug: initialSlug ?? slugify(initialTitle),
+    showEditor: false,
+    manuallyEdited: false,
+  });
+
+  // Title changes tracked via ref for slug generation
+  const titleRef = useRef(initialTitle);
+  const titleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const newTitle = e.target.value;
+    titleRef.current = newTitle;
+    if (titleTimerRef.current) clearTimeout(titleTimerRef.current);
+    titleTimerRef.current = setTimeout(() => {
+      dispatchSlug({ type: "title_changed", title: newTitle });
+    }, 300);
+  };
+
   const [contentMarkdown, setContentMarkdown] = useState(initialContentMarkdown);
+  const [imageUrl, setImageUrl] = useState(initialImageUrl);
+
+  // Redirect to showcases listing after successful publish
+  const publishStatusRef = useRef(publishState.status);
+  useEffect(() => {
+    if (publishState.status === "published" && publishStatusRef.current !== "published") {
+      publishStatusRef.current = "published";
+      const timeout = setTimeout(() => {
+        window.location.href = "/showcases";
+      }, SAVED_INDICATOR_DELAY_MS);
+      return () => clearTimeout(timeout);
+    }
+    publishStatusRef.current = publishState.status;
+  }, [publishState.status]);
 
   return (
     <form action={saveFormAction} className={adminEditorGridClass}>
       <input name="showcaseId" type="hidden" value={visibleState.showcaseId} />
+      <input name="slug" type="hidden" value={slugState.slug} />
       <input name="contentMarkdown" type="hidden" value={contentMarkdown} />
+      <input name="imageUrl" type="hidden" value={imageUrl} />
 
       <AdminCard>
         <AdminCardSection title="Metadata" />
         <AdminCardBody className={adminEditorFieldsClass}>
           <AdminFormField htmlFor="showcase-title" label="Title">
-            <AdminInput id="showcase-title" name="title" defaultValue={initialTitle} />
+            <AdminInput
+              id="showcase-title"
+              name="title"
+              defaultValue={initialTitle}
+              onChange={handleTitleChange}
+              placeholder="Enter your showcase title..."
+            />
           </AdminFormField>
-          <AdminFormField htmlFor="showcase-slug" label="Slug">
-            <AdminInput id="showcase-slug" name="slug" defaultValue={slug} />
-          </AdminFormField>
+
+          {/* Slug — auto-generated, collapsible editor */}
+          <div className="md:col-span-2 -mt-1">
+            <button
+              type="button"
+              onClick={() => dispatchSlug({ type: "toggle_editor" })}
+              className={cn(
+                "inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors",
+                "hover:text-foreground"
+              )}
+            >
+              <Pencil className="size-3" />
+              <span>
+                {slugState.showEditor ? "Hide URL" : `URL: /showcases/${slugState.slug}`}
+              </span>
+            </button>
+
+            {slugState.showEditor && (
+              <div className="mt-2 flex items-center gap-2">
+                <span className="shrink-0 text-xs text-muted-foreground">/showcases/</span>
+                <AdminInput
+                  id="showcase-slug"
+                  name="slug-editor"
+                  value={slugState.slug}
+                  onChange={(e) => dispatchSlug({ type: "manual_edit", value: e.target.value })}
+                  className="h-8 text-xs"
+                  placeholder="url-slug"
+                />
+                {slugState.manuallyEdited && (
+                  <button
+                    type="button"
+                    onClick={() => dispatchSlug({ type: "reset", title: titleRef.current })}
+                    className="shrink-0 text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+                  >
+                    Reset
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
           <AdminFormField className="md:col-span-2" htmlFor="showcase-hero-summary" label="Hero summary">
             <AdminTextarea
               id="showcase-hero-summary"
@@ -91,6 +219,16 @@ export function ShowcaseEditor({
           </AdminFormField>
           <AdminFormField htmlFor="showcase-use-case" label="Use case">
             <AdminInput id="showcase-use-case" name="useCase" defaultValue={initialUseCase} />
+          </AdminFormField>
+
+          <AdminFormField className="md:col-span-2" htmlFor="showcase-image-url" label="Featured image URL">
+            <AdminInput
+              id="showcase-image-url"
+              name="featured-image-url"
+              defaultValue={initialImageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              placeholder="https://example.com/hero-image.jpg"
+            />
           </AdminFormField>
         </AdminCardBody>
 
@@ -122,7 +260,7 @@ export function ShowcaseEditor({
           ) : (
             <FileText className="size-4 shrink-0 text-muted-foreground" />
           )}
-          <span className="truncate">{visibleState.status === "published" ? "Published" : visibleState.message}</span>
+          <span className="truncate">{visibleState.status === "published" ? "Published — redirecting to showcases..." : visibleState.message}</span>
         </div>
 
         <AdminEditorDivider />

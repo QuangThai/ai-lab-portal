@@ -42,7 +42,8 @@ async function callAdminApi(path: string, init: RequestInit, session: AdminSessi
 
 async function saveDraft(formData: FormData, session: AdminSession) {
   const showcaseId = formData.get("showcaseId");
-  const payload = {
+  const imageUrlValue = formData.get("imageUrl");
+  const payload: Record<string, string | null> = {
     title: readRequiredField(formData, "title"),
     slug: readRequiredField(formData, "slug"),
     hero_summary: readRequiredField(formData, "heroSummary"),
@@ -50,6 +51,9 @@ async function saveDraft(formData: FormData, session: AdminSession) {
     use_case: readOptionalField(formData, "useCase"),
     content_markdown: readRequiredField(formData, "contentMarkdown"),
   };
+  if (typeof imageUrlValue === "string" && imageUrlValue.trim().length > 0) {
+    payload.image_url = imageUrlValue.trim();
+  }
   if (typeof showcaseId === "string" && showcaseId.trim().length > 0) {
     return callAdminApi(`/admin/showcases/${showcaseId.trim()}`, { method: "PATCH", body: JSON.stringify(payload) }, session);
   }

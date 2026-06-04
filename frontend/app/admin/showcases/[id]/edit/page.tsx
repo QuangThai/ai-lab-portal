@@ -22,6 +22,7 @@ type AdminShowcaseDetail = {
   industry: string | null;
   use_case: string | null;
   content_markdown: string;
+  image_url?: string | null;
 };
 
 async function getAdminShowcase(id: string) {
@@ -65,6 +66,7 @@ export default async function AdminShowcaseEditPage({
         <ShowcaseEditor
           initialContentMarkdown={item.content_markdown}
           initialHeroSummary={item.hero_summary}
+          initialImageUrl={item.image_url ?? undefined}
           initialIndustry={item.industry ?? ""}
           initialShowcaseId={item.id}
           initialSlug={item.slug}
