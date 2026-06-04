@@ -87,6 +87,7 @@ export default async function AdminDashboardPage() {
     { label: "Blog posts", value: stats.blogTotal, hint: `${stats.blogPublished} live, ${stats.blogDrafts} drafts`, href: "/admin/blog", icon: FileText },
     { label: "Blog ideas", value: stats.ideasTotal, hint: `${stats.ideasPending} pending, ${stats.ideasApproved} approved`, href: "/admin/blog-ideas", icon: Lightbulb },
     { label: "Showcases", value: stats.showcasesTotal, hint: `${stats.showcasesPublished} live, ${stats.showcasesDrafts} drafts`, href: "/admin/showcases", icon: Briefcase },
+    { label: "AI News", value: stats.newsPublished, hint: "published items", href: "/admin/news-review", icon: Newspaper },
   ];
 
   return (
@@ -99,6 +100,28 @@ export default async function AdminDashboardPage() {
         />
 
         <AdminDashboardStatGrid stats={statCards} />
+
+        {stats.recentActivity.length > 0 && (
+          <section className={adminSectionPanelClass}>
+            <div className="border-b border-border px-4 py-4 sm:px-5">
+              <h2 className={adminSectionTitleClass}>Recent activity</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Latest editorial actions across the system.
+              </p>
+            </div>
+            <div className="divide-y divide-border">
+              {stats.recentActivity.slice(0, 8).map((event, i) => (
+                <div key={i} className="flex items-center justify-between px-4 py-3 text-sm sm:px-5">
+                  <span className="text-foreground">{event.action}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {event.actorEmail}
+                    <span className="ml-2">{new Date(event.createdAt).toLocaleString()}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className={adminSectionPanelClass}>
           <div className="grid gap-3 border-b border-border px-4 py-4 sm:px-5 lg:grid-cols-[minmax(0,1fr)_14rem] lg:items-end">

@@ -562,6 +562,48 @@ def create_app(
             raise HTTPException(status_code=404, detail="Contact message not found")
         return msg
 
+    # Dashboard stats
+    @app.get("/admin/dashboard/stats")
+    async def admin_dashboard_stats(
+        _identity: AdminIdentity = Depends(require_configured_admin_identity),
+    ) -> dict[str, object]:
+        blog_posts_list = repository.list_all() if hasattr(repository, "list_all") else []
+        blog_published = sum(1 for p in blog_posts_list if p.status == "published")
+        blog_drafts = len(blog_posts_list) - blog_published
+
+        showcases_list = showcases_repo.list_all() if hasattr(showcases_repo, "list_all") else []
+        showcases_published = sum(1 for s in showcases_list if s.status == "published")
+        showcases_drafts = len(showcases_list) - showcases_published
+
+        ideas_list = ideas_repo.list_all() if hasattr(ideas_repo, "list_all") else []
+        ideas_pending = sum(1 for i in ideas_list if i.status == "pending")
+        ideas_approved = sum(1 for i in ideas_list if i.status == "approved")
+
+        news_list = review_repo.list_published() if hasattr(review_repo, "list_published") else []
+
+        audit_list = repository.list_audit_events() if hasattr(repository, "list_audit_events") else []
+        recent_activity = [
+            {"action": e.action, "actor_email": e.actor_email, "created_at": e.created_at.isoformat()}
+            for e in sorted(audit_list, key=lambda e: e.created_at, reverse=True)[:10]
+        ]
+
+        return {
+            "blog_drafts": blog_drafts,
+            "blog_published": blog_published,
+            "blog_total": len(blog_posts_list),
+            "ideas_pending": ideas_pending,
+            "ideas_approved": ideas_approved,
+            "ideas_total": len(ideas_list),
+            "showcases_drafts": showcases_drafts,
+            "showcases_published": showcases_published,
+            "showcases_total": len(showcases_list),
+            "projects_drafts": 0,
+            "projects_published": 0,
+            "projects_total": 0,
+            "news_published": len(news_list),
+            "recent_activity": recent_activity,
+        }
+
     return app
 
 
