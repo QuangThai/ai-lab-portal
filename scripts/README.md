@@ -20,10 +20,12 @@ scripts/bin/harness-cli trace ...     # Record and auto-score an agent execution
 scripts/bin/harness-cli score-trace   # Score a trace against TRACE_SPEC.md tiers
 scripts/bin/harness-cli query ...     # Query harness data, including backlog --open/--closed
 scripts/bin/harness-cli query matrix --numeric  # Show proof flags as 1/0
-scripts/bin/harness-audit traces     # Audit all trace records for completeness (companion wrapper)
-scripts/bin/harness-audit matrix     # Audit proof matrix for missing evidence (companion wrapper)
-python scripts/trace_quality.py       # Direct access to trace completeness audit
-python scripts/proof_matrix_gaps.py   # Direct access to proof matrix gap audit
+scripts/bin/harness-audit traces          # Audit all trace records for completeness (companion wrapper)
+scripts/bin/harness-audit trace update   # Update specific fields of a trace record (companion wrapper)
+scripts/bin/harness-audit matrix          # Audit proof matrix for missing evidence (companion wrapper)
+python scripts/trace_quality.py           # Direct access to trace completeness audit
+python scripts/trace_update.py --id 122   # Direct access to trace record update
+python scripts/proof_matrix_gaps.py       # Direct access to proof matrix gap audit
 node scripts/setup-git-hooks.mjs      # Enable repo-root Husky hooks (also runs on frontend npm install)
 python scripts/deploy_smoke.py        # Smoke-test deployed backend/frontend URLs
 scripts/bin/harness-cli migrate       # Apply pending schema migrations

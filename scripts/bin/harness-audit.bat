@@ -16,6 +16,7 @@ set PYTHON=python
 set SUB=%1
 
 if /I "%SUB%"=="traces" goto :traces
+if /I "%SUB%"=="trace" goto :trace_update
 if /I "%SUB%"=="matrix" goto :matrix
 if /I "%SUB%"=="help" goto :help
 if "%SUB%"=="" goto :help
@@ -28,6 +29,11 @@ exit /b 1
 %PYTHON% "%REPO_ROOT%\scripts\trace_quality.py"
 exit /b %ERRORLEVEL%
 
+:trace_update
+shift
+%PYTHON% "%REPO_ROOT%\scripts\trace_update.py" %*
+exit /b %ERRORLEVEL%
+
 :matrix
 %PYTHON% "%REPO_ROOT%\scripts\proof_matrix_gaps.py"
 exit /b %ERRORLEVEL%
@@ -36,9 +42,10 @@ exit /b %ERRORLEVEL%
 echo Harness audit companion commands
 echo.
 echo Usage:
-echo   scripts\bin\harness-audit traces    Audit trace completeness
-echo   scripts\bin\harness-audit matrix    Audit proof matrix gaps
+echo   scripts\bin\harness-audit traces        Audit trace completeness
+echo   scripts\bin\harness-audit trace update  Update specific fields of a trace record
+echo   scripts\bin\harness-audit matrix        Audit proof matrix gaps
 echo.
 echo These are lightweight wrappers around the Python audit scripts.
-echo See scripts/README.md and scripts/trace_quality.py for details.
+echo See scripts/README.md and scripts/trace_update.py for details.
 exit /b 0

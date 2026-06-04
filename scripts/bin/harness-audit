@@ -31,15 +31,24 @@ case "${1:-help}" in
     shift
     exec "$PYTHON" "$REPO_ROOT/scripts/proof_matrix_gaps.py" "$@"
     ;;
+  trace)
+    shift
+    # Allow "trace update" (shift off "update" too)
+    if [ "${1:-}" = "update" ]; then
+      shift
+    fi
+    exec "$PYTHON" "$REPO_ROOT/scripts/trace_update.py" "$@"
+    ;;
   help|"")
     echo "Harness audit companion commands"
     echo ""
     echo "Usage:"
-    echo "  scripts/bin/harness-audit traces    Audit trace completeness"
-    echo "  scripts/bin/harness-audit matrix    Audit proof matrix gaps"
+    echo "  scripts/bin/harness-audit traces        Audit trace completeness"
+    echo "  scripts/bin/harness-audit trace update  Update specific fields of a trace record"
+    echo "  scripts/bin/harness-audit matrix        Audit proof matrix gaps"
     echo ""
     echo "These are lightweight wrappers around the Python audit scripts."
-    echo "See scripts/README.md and scripts/trace_quality.py for details."
+    echo "See scripts/README.md and scripts/trace_update.py for details."
     ;;
   *)
     echo "Unknown subcommand: $1"
