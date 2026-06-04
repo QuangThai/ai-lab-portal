@@ -2,7 +2,7 @@
 
 ## Status
 
-planned
+implemented
 
 ## Lane
 
@@ -87,4 +87,29 @@ None expected.
 
 ## Evidence
 
-Pending implementation.
+Implemented in code:
+
+- `backend/app/blog_tags.py` now seeds a rich default taxonomy and keeps missing defaults backfilled.
+- `backend/migrations/versions/20260604_0026_blog_tags.py` creates `blog_tags` / `blog_post_tags` and inserts default tags.
+- `frontend/components/admin/blog-editor.tsx` now uses a searchable tag picker with selected chips, create-new affordance, and max 4 tags.
+- Blog create/edit routes pass available tags into `BlogEditor`.
+
+Validation run:
+
+```text
+python -m pytest backend/tests/test_blog_tags.py -q
+# 5 passed
+
+python -m pytest backend/tests/test_blog_tags.py backend/tests/test_blog_public.py backend/tests/test_admin_blog.py -q
+# 14 passed
+
+cd frontend && npm run typecheck
+# passed
+
+cd frontend && npm run lint
+# passed
+
+cd frontend && npm run build
+# passed; routes include /blog, /blog/[slug], /blog/new, /blog/edit/[id]
+```
+

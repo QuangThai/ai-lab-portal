@@ -8,7 +8,7 @@ import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { BlogEditor } from "@/components/admin/blog-editor";
 import { createAdminBoundaryHeaders } from "@/lib/admin/fastapi-boundary";
 import { auth } from "@/lib/auth/server";
-import { listAdminPostTags } from "@/lib/blog/tags";
+import { listAdminBlogTags, listAdminPostTags } from "@/lib/blog/tags";
 import { publishAction, saveDraftAction } from "../../editor/actions";
 
 const backendBaseUrl =
@@ -55,7 +55,11 @@ export default async function AdminBlogEditPage({
 }) {
   const { id } = await params;
   const session = await getAdminSession();
-  const [post, tags] = await Promise.all([getAdminBlogPost(id), listAdminPostTags(session, id).catch(() => [])]);
+  const [post, tags, availableTags] = await Promise.all([
+    getAdminBlogPost(id),
+    listAdminPostTags(session, id).catch(() => []),
+    listAdminBlogTags(session).catch(() => []),
+  ]);
 
   if (!post) notFound();
 
@@ -78,6 +82,7 @@ export default async function AdminBlogEditPage({
           initialImageUrl={post.image_url ?? undefined}
           initialPostId={post.id}
           initialTagNames={tags.map((tag) => tag.name)}
+          availableTagNames={availableTags.map((tag) => tag.name)}
           initialSlug={post.slug}
           initialTitle={post.title}
           publishAction={publishAction}

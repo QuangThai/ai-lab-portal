@@ -7,6 +7,7 @@ import { adminPageStackClass } from "@/components/admin/admin-ui";
 import { BlogEditor } from "@/components/admin/blog-editor";
 import { publishAction, saveDraftAction } from "./actions";
 import { auth } from "@/lib/auth/server";
+import { listAdminBlogTags } from "@/lib/blog/tags";
 
 export default async function AdminBlogEditorPage() {
   const session = await auth.api.getSession({
@@ -17,6 +18,8 @@ export default async function AdminBlogEditorPage() {
     redirect("/admin/login");
   }
 
+  const tags = await listAdminBlogTags(session).catch(() => []);
+
   return (
     <AdminCmsShell active="editor">
       <div className={adminPageStackClass}>
@@ -26,7 +29,7 @@ export default async function AdminBlogEditorPage() {
           title="Blog editor"
         />
 
-        <BlogEditor publishAction={publishAction} saveDraftAction={saveDraftAction} />
+        <BlogEditor availableTagNames={tags.map((tag) => tag.name)} publishAction={publishAction} saveDraftAction={saveDraftAction} />
       </div>
     </AdminCmsShell>
   );

@@ -25,6 +25,7 @@ type BlogEditorProps = {
   initialImageUrl?: string;
   initialPostId?: string;
   initialTagNames?: string[];
+  availableTagNames?: string[];
   initialSlug?: string;
   initialTitle?: string;
   saveDraftAction: (previous: EditorActionState, formData: FormData) => Promise<EditorActionState>;
@@ -90,6 +91,7 @@ export function BlogEditor({
   initialImageUrl = "",
   initialPostId = "",
   initialTagNames = [],
+  availableTagNames = [],
   initialSlug,
   initialTitle = "Building useful AI agents without losing review control",
   saveDraftAction,
@@ -127,6 +129,25 @@ export function BlogEditor({
 
   const [contentMarkdown, setContentMarkdown] = useState(initialContentMarkdown);
   const [imageUrl, setImageUrl] = useState(initialImageUrl);
+  const [selectedTags, setSelectedTags] = useState<string[]>(initialTagNames.slice(0, 4));
+  const [tagDraft, setTagDraft] = useState("");
+
+  const normalizedAvailableTags = Array.from(new Set(availableTagNames)).sort((a, b) => a.localeCompare(b));
+  const tagSuggestions = normalizedAvailableTags
+    .filter((tag) => !selectedTags.some((selected) => selected.toLowerCase() === tag.toLowerCase()))
+    .filter((tag) => tag.toLowerCase().includes(tagDraft.toLowerCase().trim()))
+    .slice(0, 8);
+
+  function addTag(tag: string) {
+    const clean = tag.trim();
+    if (!clean || selectedTags.length >= 4 || selectedTags.some((selected) => selected.toLowerCase() === clean.toLowerCase())) return;
+    setSelectedTags((current) => [...current, clean]);
+    setTagDraft("");
+  }
+
+  function removeTag(tag: string) {
+    setSelectedTags((current) => current.filter((item) => item !== tag));
+  }
 
   // Redirect to blog listing after successful publish
   const publishStatusRef = useRef(publishState.status);
@@ -148,6 +169,7 @@ export function BlogEditor({
       <input name="slug" type="hidden" value={slugState.slug} />
       <input name="contentMarkdown" type="hidden" value={contentMarkdown} />
       <input name="imageUrl" type="hidden" value={imageUrl} />
+      <input name="tagNames" type="hidden" value={selectedTags.join(", ")} />
 
       <AdminCard>
         <AdminCardSection title="Metadata" />
@@ -217,13 +239,47 @@ export function BlogEditor({
           </AdminFormField>
 
           <AdminFormField className="md:col-span-2" htmlFor="blog-tags" label="Tags">
-            <AdminInput
-              id="blog-tags"
-              name="tagNames"
-              defaultValue={initialTagNames.join(", ")}
-              placeholder="Agents, LLM Ops, AI Tools"
-            />
-            <p className="mt-1 text-xs text-muted-foreground">Separate tags with commas. New tags are created automatically.</p>
+            <div className="rounded-md border border-input bg-background p-2">
+              <div className="mb-2 flex flex-wrap gap-2">
+                {selectedTags.map((tag) => (
+                  <span key={tag} className="inline-flex items-center gap-1 rounded-full bg-accent px-2.5 py-1 text-xs font-medium text-foreground">
+                    #{tag}
+                    <button type="button" onClick={() => removeTag(tag)} className="text-muted-foreground hover:text-foreground" aria-label={`Remove ${tag}`}>
+                      ×
+                    </button>
+                  </span>
+                ))}
+                {selectedTags.length === 0 && <span className="px-1 py-1 text-xs text-muted-foreground">No tags selected</span>}
+              </div>
+              <AdminInput
+                id="blog-tags"
+                value={tagDraft}
+                onChange={(event) => setTagDraft(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" || event.key === ",") {
+                    event.preventDefault();
+                    addTag(tagDraft);
+                  }
+                }}
+                placeholder={selectedTags.length >= 4 ? "Maximum 4 tags" : "Search or create a tag…"}
+                disabled={selectedTags.length >= 4}
+              />
+              {selectedTags.length < 4 && (tagSuggestions.length > 0 || tagDraft.trim()) && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {tagSuggestions.map((tag) => (
+                    <button key={tag} type="button" onClick={() => addTag(tag)} className="rounded-full border px-2.5 py-1 text-xs text-muted-foreground hover:border-brand/40 hover:text-brand">
+                      #{tag}
+                    </button>
+                  ))}
+                  {tagDraft.trim() && !normalizedAvailableTags.some((tag) => tag.toLowerCase() === tagDraft.trim().toLowerCase()) && (
+                    <button type="button" onClick={() => addTag(tagDraft)} className="rounded-full border border-brand/30 px-2.5 py-1 text-xs text-brand">
+                      Create #{tagDraft.trim()}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">Choose up to 4 tags. Search existing tags or type a new one and press Enter.</p>
           </AdminFormField>
         </AdminCardBody>
 

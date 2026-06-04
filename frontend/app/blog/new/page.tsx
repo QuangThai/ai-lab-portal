@@ -6,6 +6,7 @@ import { PublicPageShell } from "@/components/public/public-page-shell";
 import { publicMainWidthClass } from "@/components/public/public-ui";
 import { publishAction, saveDraftAction } from "@/app/admin/blog/editor/actions";
 import { auth } from "@/lib/auth/server";
+import { listAdminBlogTags } from "@/lib/blog/tags";
 import { cn } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -22,10 +23,12 @@ export default async function BlogNewPage() {
     redirect("/admin/login?redirect=/blog/new");
   }
 
+  const tags = await listAdminBlogTags(session).catch(() => []);
+
   return (
     <PublicPageShell>
       <section className={cn(publicMainWidthClass, "flex flex-col gap-8 py-10 sm:py-14")}>
-        <BlogEditor publishAction={publishAction} saveDraftAction={saveDraftAction} />
+        <BlogEditor availableTagNames={tags.map((tag) => tag.name)} publishAction={publishAction} saveDraftAction={saveDraftAction} />
       </section>
     </PublicPageShell>
   );

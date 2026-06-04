@@ -23,6 +23,32 @@ from backend.app.database import blog_post_tags, blog_posts, blog_tags
 from backend.app.settings import Settings
 
 _SLUG_PATTERN = r"^[a-z0-9]+(?:-[a-z0-9]+)*$"
+DEFAULT_BLOG_TAG_NAMES = (
+    "AI",
+    "JavaScript",
+    "TypeScript",
+    "Node.js",
+    "Programming",
+    "WebDev",
+    "React",
+    "Next.js",
+    "Python",
+    "Agents",
+    "LLM",
+    "OpenAI",
+    "Tools",
+    "Machine Learning",
+    "Data Science",
+    "APIs",
+    "Automation",
+    "Productivity",
+    "Cloud",
+    "DevOps",
+    "Postgres",
+    "Security",
+    "UX",
+    "Tutorial",
+)
 
 
 def slugify_tag(value: str) -> str:
@@ -82,13 +108,14 @@ class InMemoryBlogTagRepository(BlogTagRepository):
     def __init__(self) -> None:
         self._tags: dict[str, BlogTag] = {}
         self._post_tags: dict[str, set[str]] = {}
-        self._published_post_ids: set[str] = set()
+        for name in DEFAULT_BLOG_TAG_NAMES:
+            self.create_tag(BlogTagCreate(name=name))
 
     def list_public_tags(self, *, published_post_ids: set[str] | None = None) -> list[BlogTagSummary]:
         return self._summaries(published_post_ids=published_post_ids)
 
     def list_admin_tags(self) -> list[BlogTagSummary]:
-        return self._summaries(published_only=False)
+        return self._summaries(published_post_ids=None)
 
     def create_tag(self, request: BlogTagCreate) -> BlogTag:
         slug = request.slug or slugify_tag(request.name)
@@ -135,9 +162,25 @@ class PostgresBlogTagRepository(BlogTagRepository):
     def __init__(self, engine: Engine) -> None:
         self.engine = engine
 
+    def seed_defaults_when_empty(self) -> None:
+        with self.engine.begin() as conn:
+            existing_slugs = {row.slug for row in conn.execute(select(blog_tags.c.slug)).fetchall()}
+            missing = [name for name in DEFAULT_BLOG_TAG_NAMES if slugify_tag(name) not in existing_slugs]
+            if not missing:
+                return
+            now = datetime.now(UTC)
+            conn.execute(
+                insert(blog_tags),
+                [
+                    {"id": f"tag_{uuid4().hex}", "slug": slugify_tag(name), "name": name, "created_at": now}
+                    for name in missing
+                ],
+            )
+
     def list_public_tags(self, *, published_post_ids: set[str] | None = None) -> list[BlogTagSummary]:
         void_published_post_ids = published_post_ids
         del void_published_post_ids
+        self.seed_defaults_when_empty()
         with self.engine.begin() as conn:
             rows = conn.execute(
                 select(
@@ -158,6 +201,7 @@ class PostgresBlogTagRepository(BlogTagRepository):
             return [BlogTagSummary(**dict(row)) for row in rows]
 
     def list_admin_tags(self) -> list[BlogTagSummary]:
+        self.seed_defaults_when_empty()
         with self.engine.begin() as conn:
             rows = conn.execute(
                 select(
@@ -173,6 +217,7 @@ class PostgresBlogTagRepository(BlogTagRepository):
             return [BlogTagSummary(**dict(row)) for row in rows]
 
     def create_tag(self, request: BlogTagCreate) -> BlogTag:
+        self.seed_defaults_when_empty()
         slug = request.slug or slugify_tag(request.name)
         tag = BlogTag(id=f"tag_{uuid4().hex}", slug=slug, name=request.name.strip(), created_at=datetime.now(UTC))
         with self.engine.begin() as conn:

@@ -52,7 +52,7 @@ def _post_payload(slug: str) -> dict[str, str]:
 def test_admin_can_create_tags_and_attach_to_post() -> None:
     client = _client()
     post = client.post("/admin/blog-posts", json=_post_payload("tagged-post"), headers=_admin_headers()).json()
-    tag = client.post("/admin/blog-tags", json={"name": "Agents"}, headers=_admin_headers()).json()
+    tag = client.post("/admin/blog-tags", json={"name": "Custom Agents"}, headers=_admin_headers()).json()
 
     response = client.put(
         f"/admin/blog-posts/{post['id']}/tags",
@@ -61,7 +61,7 @@ def test_admin_can_create_tags_and_attach_to_post() -> None:
     )
 
     assert response.status_code == 200
-    assert response.json()[0]["slug"] == "agents"
+    assert response.json()[0]["slug"] == "custom-agents"
 
 
 def test_public_tag_filter_only_returns_published_tagged_posts() -> None:
@@ -102,10 +102,20 @@ def test_public_blog_tags_counts_only_published_posts() -> None:
     assert response.json() == [{"id": tag["id"], "slug": "ai-tools", "name": "AI Tools", "post_count": 1}]
 
 
+def test_admin_tag_list_includes_default_developer_taxonomy() -> None:
+    client = _client()
+
+    response = client.get("/admin/blog-tags", headers=_admin_headers())
+
+    assert response.status_code == 200
+    slugs = {tag["slug"] for tag in response.json()}
+    assert {"ai", "javascript", "typescript", "nodejs", "programming", "webdev"}.issubset(slugs)
+
+
 def test_duplicate_tag_slug_returns_409() -> None:
     client = _client()
-    assert client.post("/admin/blog-tags", json={"name": "Agents"}, headers=_admin_headers()).status_code == 200
+    assert client.post("/admin/blog-tags", json={"name": "Custom Duplicate"}, headers=_admin_headers()).status_code == 200
 
-    response = client.post("/admin/blog-tags", json={"name": "Agents"}, headers=_admin_headers())
+    response = client.post("/admin/blog-tags", json={"name": "Custom Duplicate"}, headers=_admin_headers())
 
     assert response.status_code == 409
