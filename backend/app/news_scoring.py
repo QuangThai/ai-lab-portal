@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -82,6 +83,8 @@ class ScoreDimensions(BaseModel):
     business_value_score: float = Field(ge=0.0, le=1.0)
     spam_risk_score: float = Field(ge=0.0, le=1.0)
     final_publish_score: float = Field(ge=0.0, le=1.0)
+    author_credibility_score: float | None = Field(default=None, ge=0.0, le=1.0)
+    social_engagement_score: float | None = Field(default=None, ge=0.0, le=1.0)
 
 
 class NewsReviewItem(BaseModel):
@@ -98,6 +101,9 @@ class NewsReviewItem(BaseModel):
     business_value_score: float
     spam_risk_score: float
     final_publish_score: float
+    author_credibility_score: float | None = None
+    social_engagement_score: float | None = None
+    social_metadata: str | None = None
     summary: str
     why_it_matters: str
     scorer_version: str
@@ -155,10 +161,105 @@ def _novelty_score(published_at: datetime | None, *, now: datetime) -> float:
     return 0.5
 
 
+def _extract_social_metadata(raw_payload: dict | None) -> dict:
+    """Extract social scoring metadata from a raw item's payload.
+
+    Returns a dict with social_engagement_score, author_credibility_score,
+    social_filter_decision, and display-relevant fields.
+    Also returns a 'social_metadata_json' string for storage on the review item.
+    """
+    if not raw_payload:
+        return {}
+
+    result: dict = {}
+
+    # Collect display-relevant fields for the review item
+    display: dict = {}
+
+    # Social filter decision stores engagement and risk info
+    filter_dec = raw_payload.get("social_filter_decision") or {}
+    if filter_dec:
+        risk_flags = filter_dec.get("risk_flags") or []
+        priority = filter_dec.get("priority", "low")
+        result["risk_flags"] = risk_flags
+        result["social_filter_priority"] = priority
+        display["risk_flags"] = risk_flags
+
+    # Extract engagement from social payload fields
+    like_count = _int_or_none(raw_payload.get("social_like_count"))
+    repost_count = _int_or_none(raw_payload.get("social_repost_count"))
+    reply_count = _int_or_none(raw_payload.get("social_reply_count"))
+    view_count = _int_or_none(raw_payload.get("social_view_count"))
+
+    engagement_values = [v for v in [like_count, repost_count, reply_count] if v is not None]
+    if engagement_values:
+        total = sum(engagement_values)
+        normalized = min(1.0, total / 1000.0)
+        result["social_engagement_score"] = normalized
+        display["like_count"] = like_count or 0
+        display["repost_count"] = repost_count or 0
+        display["reply_count"] = reply_count or 0
+
+    # Author credibility and display fields from social metadata
+    author_followers = _int_or_none(raw_payload.get("social_author_followers"))
+    author_verified = raw_payload.get("social_author_verified")
+    author_handle = raw_payload.get("social_author_handle", "")
+    author_display = raw_payload.get("social_author_display_name", "")
+
+    if author_handle:
+        display["author_handle"] = author_handle
+    if author_display:
+        display["author_display_name"] = author_display
+    if author_verified is not None:
+        display["author_verified"] = bool(author_verified)
+    if author_followers is not None:
+        display["author_followers"] = author_followers
+
+    if author_followers is not None or author_verified is not None:
+        credibility = 0.5  # baseline
+        if author_verified is True:
+            credibility += 0.25
+        if author_verified is False:
+            credibility -= 0.1
+        if author_followers is not None:
+            if author_followers >= 100000:
+                credibility += 0.2
+            elif author_followers >= 10000:
+                credibility += 0.1
+            elif author_followers < 1000:
+                credibility -= 0.1
+        result["author_credibility_score"] = max(0.0, min(1.0, credibility))
+
+    # Also extract source post URL for display
+    post_url = raw_payload.get("social_post_url")
+    if post_url:
+        display["post_url"] = post_url
+
+    # Check for risk flags from social filter
+    if "spam_or_engagement_bait" in (filter_dec.get("risk_flags") or []):
+        result["social_spam_boost"] = 0.3  # extra spam risk
+
+    if display:
+        result["social_metadata_json"] = json.dumps(display)
+
+    return result
+
+
+def _int_or_none(value: object) -> int | None:
+    if value is None or value == "":
+        return None
+    try:
+        parsed = int(value)  # type: ignore[arg-type]
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
 def compute_heuristic_scores(
     *,
     article: ExtractedArticle,
     source: NewsSource,
+    raw_item_payload: dict | None = None,
     now: datetime | None = None,
 ) -> ScoreDimensions:
     moment = now or datetime.now(UTC)
@@ -167,9 +268,24 @@ def compute_heuristic_scores(
     technical = _keyword_density(corpus, _TECH_KEYWORDS)
     business = _keyword_density(corpus, _BUSINESS_KEYWORDS)
     spam = _spam_risk(corpus)
-    engagement = 0.5
     credibility = max(0.0, min(1.0, source.credibility_base_score))
     novelty = _novelty_score(article.published_at, now=moment)
+
+    # Default engagement (used for non-social sources)
+    engagement = 0.5
+    author_credibility: float | None = None
+    social_engagement: float | None = None
+
+    # Social-specific scoring when raw payload has social metadata
+    social_meta = _extract_social_metadata(raw_item_payload)
+    if social_meta.get("social_engagement_score") is not None:
+        social_engagement = social_meta["social_engagement_score"]
+        engagement = social_engagement  # overload engagement with social data
+    if social_meta.get("author_credibility_score") is not None:
+        author_credibility = social_meta["author_credibility_score"]
+        credibility = author_credibility  # use social author credibility
+    if social_meta.get("social_spam_boost"):
+        spam = min(1.0, spam + social_meta["social_spam_boost"])
 
     final = (
         credibility * 0.15
@@ -191,6 +307,8 @@ def compute_heuristic_scores(
         business_value_score=business,
         spam_risk_score=spam,
         final_publish_score=final,
+        author_credibility_score=author_credibility,
+        social_engagement_score=social_engagement,
     )
 
 
@@ -240,9 +358,15 @@ def _score_with_llm(
     return scores, result.summary, result.why_it_matters, LLM_SCORER_VERSION
 
 
-def _score_with_heuristics(article: ExtractedArticle, source: NewsSource) -> tuple[ScoreDimensions, str, str, str]:
-    scores = compute_heuristic_scores(article=article, source=source)
-    return scores, _build_summary(article, scores), _build_why_it_matters(scores), SCORER_VERSION
+def _score_with_heuristics(
+    article: ExtractedArticle,
+    source: NewsSource,
+    raw_payload: dict | None = None,
+) -> tuple[ScoreDimensions, str, str, str, str | None]:
+    scores = compute_heuristic_scores(article=article, source=source, raw_item_payload=raw_payload)
+    social_meta = _extract_social_metadata(raw_payload)
+    social_metadata_json = social_meta.get("social_metadata_json") if social_meta else None
+    return scores, _build_summary(article, scores), _build_why_it_matters(scores), SCORER_VERSION, social_metadata_json
 
 
 class NewsReviewRepository(ABC):
@@ -271,6 +395,7 @@ class NewsReviewRepository(ABC):
         summary: str,
         why_it_matters: str,
         scorer_version: str = SCORER_VERSION,
+        social_metadata_json: str | None = None,
     ) -> NewsReviewItem:
         ...
 
@@ -333,6 +458,7 @@ class InMemoryNewsReviewRepository(NewsReviewRepository):
         summary: str,
         why_it_matters: str,
         scorer_version: str = SCORER_VERSION,
+        social_metadata_json: str | None = None,
     ) -> NewsReviewItem:
         now = datetime.now(UTC)
         existing = self.get_by_extracted_article_id(article.id)
@@ -349,6 +475,9 @@ class InMemoryNewsReviewRepository(NewsReviewRepository):
             "business_value_score": scores.business_value_score,
             "spam_risk_score": scores.spam_risk_score,
             "final_publish_score": scores.final_publish_score,
+            "author_credibility_score": scores.author_credibility_score,
+            "social_engagement_score": scores.social_engagement_score,
+            "social_metadata": social_metadata_json,
             "summary": summary,
             "why_it_matters": why_it_matters,
             "scorer_version": scorer_version,
@@ -487,6 +616,7 @@ class PostgresNewsReviewRepository(NewsReviewRepository):
         summary: str,
         why_it_matters: str,
         scorer_version: str = SCORER_VERSION,
+        social_metadata_json: str | None = None,
     ) -> NewsReviewItem:
         now = datetime.now(UTC)
         existing = self.get_by_extracted_article_id(article.id)
@@ -504,6 +634,9 @@ class PostgresNewsReviewRepository(NewsReviewRepository):
             "business_value_score": scores.business_value_score,
             "spam_risk_score": scores.spam_risk_score,
             "final_publish_score": scores.final_publish_score,
+            "author_credibility_score": scores.author_credibility_score,
+            "social_engagement_score": scores.social_engagement_score,
+            "social_metadata": social_metadata_json,
             "summary": summary,
             "why_it_matters": why_it_matters,
             "scorer_version": scorer_version,
@@ -649,6 +782,9 @@ def run_score_extracted_article(
     if source is None:
         raise ValueError(f"News source not found: {raw_item.source_id}")
 
+    # Extract raw payload for potential social metadata
+    raw_payload = getattr(raw_item, "raw_payload", None)
+
     if llm is not None:
         try:
             scores, summary, why, scorer_version = _score_with_llm(
@@ -656,10 +792,11 @@ def run_score_extracted_article(
                 source=source,
                 llm=llm,
             )
+            social_metadata_json = None  # LLM path doesn't extract social metadata
         except (LLMGenerationError, KeyError, ValueError):
-            scores, summary, why, scorer_version = _score_with_heuristics(article, source)
+            scores, summary, why, scorer_version, social_metadata_json = _score_with_heuristics(article, source, raw_payload=raw_payload)
     else:
-        scores, summary, why, scorer_version = _score_with_heuristics(article, source)
+        scores, summary, why, scorer_version, social_metadata_json = _score_with_heuristics(article, source, raw_payload=raw_payload)
 
     review_status: ReviewStatus = (
         "candidate" if scores.final_publish_score >= threshold else "low_score"
@@ -673,6 +810,7 @@ def run_score_extracted_article(
         summary=summary,
         why_it_matters=why,
         scorer_version=scorer_version,
+        social_metadata_json=social_metadata_json,
     )
     return ScoringResult(
         extracted_article_id=extracted_article_id,

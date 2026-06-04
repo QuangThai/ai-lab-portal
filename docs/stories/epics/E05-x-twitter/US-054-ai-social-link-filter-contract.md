@@ -44,3 +44,6 @@ Define the structured pre-extraction social filter output for normalized X/Twitt
 ## Evidence
 
 - `python -m pytest backend/tests/test_social_x.py` — 10 passed.
+- `python -m pytest backend/tests/test_social_x.py backend/tests/test_news_sources.py backend/tests/test_news_crawl.py backend/tests/test_news_scoring.py backend/tests/test_news_submitted_links.py` — 29 passed.
+- `git diff --check` — passed.
+- E2E is marked `n/a`: this deterministic filter has no frontend, public API, or browser-visible surface.

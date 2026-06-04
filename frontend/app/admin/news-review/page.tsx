@@ -16,6 +16,18 @@ import { ReviewItemCardList } from "./review-item-card-list";
 
 const backendBaseUrl = process.env.BACKEND_INTERNAL_URL ?? "http://127.0.0.1:18000";
 
+export type SocialMetadata = {
+  author_handle?: string;
+  author_display_name?: string;
+  author_verified?: boolean;
+  author_followers?: number;
+  like_count?: number;
+  repost_count?: number;
+  reply_count?: number;
+  risk_flags?: string[];
+  post_url?: string;
+};
+
 export type AdminNewsReviewItem = {
   id: string;
   extracted_article_id: string;
@@ -30,6 +42,9 @@ export type AdminNewsReviewItem = {
   business_value_score: number;
   spam_risk_score: number;
   final_publish_score: number;
+  author_credibility_score: number | null;
+  social_engagement_score: number | null;
+  social_metadata: string | null;
   summary: string;
   why_it_matters: string;
   scorer_version: string;

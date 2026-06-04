@@ -25,7 +25,7 @@ if TYPE_CHECKING:
     from backend.app.news_extraction import ExtractedArticleRepository
     from backend.app.news_scoring import NewsReviewRepository
 
-NewsSourceType = Literal["rss", "github", "website", "user_submit"]
+NewsSourceType = Literal["rss", "github", "website", "user_submit", "social_x"]
 NewsPriority = Literal["high", "medium", "low"]
 
 
@@ -275,6 +275,19 @@ def _default_sources() -> list[NewsSource]:
             crawl_frequency_minutes=10080,
             is_enabled=True,
             credibility_base_score=0.6,
+            created_at=now,
+            updated_at=now,
+        ),
+        NewsSource(
+            id="newssrc_social_x_fake",
+            name="X/Twitter Intelligence (Fake)",
+            source_type="social_x",
+            url_or_identifier="@OpenAI",
+            description="MVP 5 X/Twitter ingestion spike using fake provider (US-055). Replace with real provider after budget/terms approval.",
+            priority="medium",
+            crawl_frequency_minutes=360,
+            is_enabled=True,
+            credibility_base_score=0.7,
             created_at=now,
             updated_at=now,
         ),

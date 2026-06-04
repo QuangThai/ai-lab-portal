@@ -344,3 +344,29 @@ def process_submitted_link_task(submission_id: str) -> dict:
         extractor=article_extractor(),
     )
     return row.model_dump()
+
+
+# --- US-055: X/Twitter social ingestion spike ---
+
+
+@celery_app.task(name="news.ingest_social_x_source")
+def ingest_social_x_source_task(source_id: str) -> dict:
+    from backend.app.news_social_x_ingest import run_social_x_ingest
+
+    result = run_social_x_ingest(
+        source_id,
+        sources=news_source_repository(),
+        raw_items=news_raw_item_repository(),
+    )
+    return result.model_dump()
+
+
+@celery_app.task(name="news.ingest_due_social_x_sources")
+def ingest_due_social_x_sources_task() -> list[dict]:
+    from backend.app.news_social_x_ingest import run_due_social_x_sources
+
+    results = run_due_social_x_sources(
+        sources=news_source_repository(),
+        raw_items=news_raw_item_repository(),
+    )
+    return [r.model_dump() for r in results]

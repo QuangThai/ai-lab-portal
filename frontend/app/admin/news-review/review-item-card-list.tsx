@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CheckCircle, ExternalLink, Globe, Newspaper, RotateCcw, XCircle } from "lucide-react";
+import { CheckCircle, ExternalLink, Globe, Newspaper, RotateCcw, ShieldAlert, MessageSquare, User, XCircle } from "lucide-react";
 
 import { AdminContentRow, adminListMotion } from "@/components/admin/admin-content-row";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
@@ -14,7 +14,7 @@ import {
 import { adminListPanelClass } from "@/components/admin/admin-ui";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import type { AdminNewsReviewItem } from "./page";
+import type { AdminNewsReviewItem, SocialMetadata } from "./page";
 
 type Props = {
   items: AdminNewsReviewItem[];
@@ -32,6 +32,98 @@ const statusTone: Record<AdminNewsReviewItem["review_status"], string> = {
   skipped: "border-muted-foreground/25 bg-muted/40 text-muted-foreground",
   published: "border-brand/25 bg-brand/10 text-brand",
 };
+
+function parseSocialMetadata(item: AdminNewsReviewItem): SocialMetadata | null {
+  if (!item.social_metadata) return null;
+  try {
+    return JSON.parse(item.social_metadata) as SocialMetadata;
+  } catch {
+    return null;
+  }
+}
+
+const SOCIAL_BADGE_COLORS = {
+  warning: "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300",
+  info: "border-blue-500/25 bg-blue-500/10 text-blue-700 dark:text-blue-300",
+  destructive: "border-red-500/25 bg-red-500/10 text-red-700 dark:text-red-300",
+} as const;
+
+function SocialBadge({ children, variant }: { children: React.ReactNode; variant: keyof typeof SOCIAL_BADGE_COLORS }) {
+  return (
+    <span className={cn("inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[11px] font-medium", SOCIAL_BADGE_COLORS[variant])}>
+      {children}
+    </span>
+  );
+}
+
+function SocialContext({ item }: { item: AdminNewsReviewItem }) {
+  const meta = parseSocialMetadata(item);
+  if (!meta) return null;
+
+  return (
+    <div className="rounded-lg border bg-muted/30 p-3 text-xs space-y-2">
+      <div className="flex items-center gap-1.5 font-medium text-foreground">
+        <MessageSquare className="size-3" aria-hidden />
+        <span>Source: X/Twitter</span>
+      </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        {meta.author_handle && (
+          <span className="inline-flex items-center gap-1 text-muted-foreground">
+            <User className="size-3" aria-hidden />
+            {meta.author_display_name ? (
+              <>
+                <span className="text-foreground">{meta.author_display_name}</span>
+                <span>@{meta.author_handle}</span>
+              </>
+            ) : (
+              <span className="text-foreground">@{meta.author_handle}</span>
+            )}
+            {meta.author_verified && (
+              <span className="text-blue-500" title="Verified account">✓</span>
+            )}
+            {meta.author_followers !== undefined && (
+              <span className="text-muted-foreground">
+                {meta.author_followers >= 1000000
+                  ? `${(meta.author_followers / 1000000).toFixed(1)}M`
+                  : meta.author_followers >= 1000
+                    ? `${(meta.author_followers / 1000).toFixed(1)}K`
+                    : meta.author_followers} followers
+              </span>
+            )}
+          </span>
+        )}
+        {meta.post_url && (
+          <a
+            href={meta.post_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300"
+          >
+            <ExternalLink className="size-3" aria-hidden />
+            View post
+          </a>
+        )}
+      </div>
+      {(meta.like_count !== undefined || meta.repost_count !== undefined) && (
+        <div className="flex flex-wrap gap-3 text-muted-foreground">
+          {meta.like_count !== undefined && <span>❤️ {meta.like_count.toLocaleString()}</span>}
+          {meta.repost_count !== undefined && <span>🔁 {meta.repost_count.toLocaleString()}</span>}
+          {meta.reply_count !== undefined && <span>💬 {meta.reply_count.toLocaleString()}</span>}
+        </div>
+      )}
+      {meta.risk_flags && meta.risk_flags.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          <ShieldAlert className="size-3 text-amber-500" aria-hidden />
+          {meta.risk_flags.map((flag) => (
+            <SocialBadge key={flag} variant="warning">
+              {flag.replace(/_/g, " ")}
+            </SocialBadge>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function formatDate(value: string | null) {
   if (!value) return null;
@@ -169,7 +261,20 @@ export function ReviewItemCardList({ items, approveAction, rejectAction, publish
                   <dt className="text-muted-foreground">Spam risk</dt>
                   <dd className="font-medium text-foreground">{scorePercent(item.spam_risk_score)}</dd>
                 </div>
+                {item.author_credibility_score !== null && (
+                  <div>
+                    <dt className="text-muted-foreground">Author credibility</dt>
+                    <dd className="font-medium text-foreground">{scorePercent(item.author_credibility_score)}</dd>
+                  </div>
+                )}
+                {item.social_engagement_score !== null && (
+                  <div>
+                    <dt className="text-muted-foreground">Social engagement</dt>
+                    <dd className="font-medium text-foreground">{scorePercent(item.social_engagement_score)}</dd>
+                  </div>
+                )}
               </dl>
+              <SocialContext item={item} />
             </div>
           </AdminContentRow>
         );

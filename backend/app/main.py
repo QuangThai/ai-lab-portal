@@ -1,5 +1,6 @@
 # pyright: reportUnusedFunction=false
-from typing import Annotated, cast
+from collections.abc import Callable
+from typing import Annotated, Any, cast
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 
@@ -10,26 +11,6 @@ from backend.app.admin_boundary import (
     require_admin_identity_with_settings,
 )
 from backend.app.ai_runs import AiRunRepository, PostgresAiRunRepository
-from backend.app.blog_claims import BlogClaimsRepository, PostgresBlogClaimsRepository
-from backend.app.blog_ideas import BlogIdeaRepository, PostgresBlogIdeaRepository, create_blog_idea_routes
-from backend.app.generation_jobs import GenerationJobRepository, PostgresGenerationJobRepository
-from backend.app.news_crawl import NewsRawItemRepository, PostgresNewsRawItemRepository
-from backend.app.news_extraction import ExtractedArticleRepository, PostgresExtractedArticleRepository
-from backend.app.news_publish import (
-    PublicAiNewsDetail,
-    PublicAiNewsSummary,
-    get_public_ai_news_by_slug,
-    list_public_ai_news,
-)
-from backend.app.news_scoring import InMemoryNewsReviewRepository, NewsReviewRepository, PostgresNewsReviewRepository, create_news_review_routes
-from backend.app.news_submitted_links import (
-    InMemorySubmittedLinkRepository,
-    PostgresSubmittedLinkRepository,
-    SubmittedLinkRepository,
-    create_public_submitted_link_route,
-    create_submitted_link_routes,
-)
-from backend.app.news_sources import NewsSourceRepository, PostgresNewsSourceRepository, create_news_source_routes
 from backend.app.blog import (
     AdminBlogPostDetail,
     AdminBlogPostSummary,
@@ -40,9 +21,49 @@ from backend.app.blog import (
     BlogPostSummary,
     BlogPostUpdate,
     BlogRepository,
+    BlogRepositoryProtocol,
     PostgresBlogRepository,
 )
+from backend.app.blog_claims import BlogClaimsRepository, PostgresBlogClaimsRepository
+from backend.app.blog_ideas import (
+    BlogIdeaRepository,
+    PostgresBlogIdeaRepository,
+    create_blog_idea_routes,
+)
 from backend.app.database import create_database_engine
+from backend.app.generation_jobs import (
+    GenerationJobRepository,
+    PostgresGenerationJobRepository,
+)
+from backend.app.news_crawl import NewsRawItemRepository, PostgresNewsRawItemRepository
+from backend.app.news_extraction import (
+    ExtractedArticleRepository,
+    PostgresExtractedArticleRepository,
+)
+from backend.app.news_publish import (
+    PublicAiNewsDetail,
+    PublicAiNewsSummary,
+    get_public_ai_news_by_slug,
+    list_public_ai_news,
+)
+from backend.app.news_scoring import (
+    InMemoryNewsReviewRepository,
+    NewsReviewRepository,
+    PostgresNewsReviewRepository,
+    create_news_review_routes,
+)
+from backend.app.news_sources import (
+    NewsSourceRepository,
+    PostgresNewsSourceRepository,
+    create_news_source_routes,
+)
+from backend.app.news_submitted_links import (
+    InMemorySubmittedLinkRepository,
+    PostgresSubmittedLinkRepository,
+    SubmittedLinkRepository,
+    create_public_submitted_link_route,
+    create_submitted_link_routes,
+)
 from backend.app.request_logging import RequestLoggingMiddleware
 from backend.app.settings import Settings, get_settings
 from backend.app.showcase import (
@@ -69,7 +90,7 @@ def health(request: Request) -> dict[str, str]:  # pyright: ignore[reportUnusedF
 
 def create_app(
     settings: Settings | None = None,
-    blog_repository: BlogRepository | None = None,
+    blog_repository: BlogRepositoryProtocol | None = None,
     showcase_repository: ShowcaseRepository | None = None,
     blog_idea_repository: BlogIdeaRepository | None = None,
     generation_job_repository: GenerationJobRepository | None = None,
@@ -102,11 +123,19 @@ def create_app(
         jobs_repo = generation_job_repository or PostgresGenerationJobRepository(engine)
         claims_repo = claims_repository or PostgresBlogClaimsRepository(engine)
         ai_runs_repo = ai_run_repository or PostgresAiRunRepository(engine)
-        news_sources_repo = news_source_repository or PostgresNewsSourceRepository(engine)
-        news_raw_repo = news_raw_item_repository or PostgresNewsRawItemRepository(engine)
-        extracted_repo = extracted_article_repository or PostgresExtractedArticleRepository(engine)
+        news_sources_repo = news_source_repository or PostgresNewsSourceRepository(
+            engine
+        )
+        news_raw_repo = news_raw_item_repository or PostgresNewsRawItemRepository(
+            engine
+        )
+        extracted_repo = (
+            extracted_article_repository or PostgresExtractedArticleRepository(engine)
+        )
         review_repo = news_review_repository or PostgresNewsReviewRepository(engine)
-        submitted_repo = submitted_link_repository or PostgresSubmittedLinkRepository(engine)
+        submitted_repo = submitted_link_repository or PostgresSubmittedLinkRepository(
+            engine
+        )
 
     app = FastAPI(title=resolved_settings.app_name)
     app.state.settings = resolved_settings
@@ -141,10 +170,10 @@ def create_app(
         ai_runs_repository=ai_runs_repo,
     )
     app.include_router(ideas_router)
-    crawl_enqueue = None
-    extract_enqueue = None
-    rescore_enqueue = None
-    process_submission_enqueue = None
+    crawl_enqueue: Callable[[str], str] | None = None
+    extract_enqueue: Callable[[str], str] | None = None
+    rescore_enqueue: Callable[[str], str] | None = None
+    process_submission_enqueue: Callable[[str], str] | None = None
     if resolved_settings.environment != "test":
         from backend.app.tasks import (
             crawl_rss_source_task,
@@ -153,17 +182,24 @@ def create_app(
             score_extracted_article_task,
         )
 
-        def crawl_enqueue(source_id: str) -> str:
-            return crawl_rss_source_task.delay(source_id).id
+        def _crawl_enqueue(source_id: str) -> str:
+            return cast(Any, crawl_rss_source_task).delay(source_id).id
 
-        def extract_enqueue(raw_item_id: str) -> str:
-            return extract_raw_item_task.delay(raw_item_id).id
+        def _extract_enqueue(raw_item_id: str) -> str:
+            return cast(Any, extract_raw_item_task).delay(raw_item_id).id
 
-        def rescore_enqueue(extracted_article_id: str) -> str:
-            return score_extracted_article_task.delay(extracted_article_id).id
+        def _rescore_enqueue(extracted_article_id: str) -> str:
+            return (
+                cast(Any, score_extracted_article_task).delay(extracted_article_id).id
+            )
 
-        def process_submission_enqueue(submission_id: str) -> str:
-            return process_submitted_link_task.delay(submission_id).id
+        def _process_submission_enqueue(submission_id: str) -> str:
+            return cast(Any, process_submitted_link_task).delay(submission_id).id
+
+        crawl_enqueue = _crawl_enqueue
+        extract_enqueue = _extract_enqueue
+        rescore_enqueue = _rescore_enqueue
+        process_submission_enqueue = _process_submission_enqueue
 
     app.include_router(
         create_news_source_routes(
@@ -389,7 +425,9 @@ def create_app(
             sources=news_sources_repo,
         )
         if item is None:
-            raise HTTPException(status_code=404, detail="Published AI news item not found")
+            raise HTTPException(
+                status_code=404, detail="Published AI news item not found"
+            )
         return item
 
     return app
