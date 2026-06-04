@@ -30,6 +30,14 @@ from backend.app.blog_ideas import (
     PostgresBlogIdeaRepository,
     create_blog_idea_routes,
 )
+from backend.app.blog_social import (
+    BlogSocialRepository,
+    InMemoryBlogSocialRepository,
+    PostgresBlogSocialRepository,
+    create_blog_social_routes,
+    create_blog_social_admin_routes,
+    create_user_bookmarks_routes,
+)
 from backend.app.database import create_database_engine
 from backend.app.generation_jobs import (
     GenerationJobRepository,
@@ -101,6 +109,7 @@ def create_app(
     extracted_article_repository: ExtractedArticleRepository | None = None,
     news_review_repository: NewsReviewRepository | None = None,
     submitted_link_repository: SubmittedLinkRepository | None = None,
+    blog_social_repository: BlogSocialRepository | None = None,
 ) -> FastAPI:
     resolved_settings = settings or get_settings()
     if resolved_settings.environment == "test":
@@ -115,6 +124,7 @@ def create_app(
         extracted_repo = extracted_article_repository or ExtractedArticleRepository()
         review_repo = news_review_repository or InMemoryNewsReviewRepository()
         submitted_repo = submitted_link_repository or InMemorySubmittedLinkRepository()
+        social_repo = blog_social_repository or InMemoryBlogSocialRepository()
     else:
         engine = create_database_engine(resolved_settings)
         repository = blog_repository or PostgresBlogRepository(engine)
@@ -136,6 +146,7 @@ def create_app(
         submitted_repo = submitted_link_repository or PostgresSubmittedLinkRepository(
             engine
         )
+        social_repo = blog_social_repository or PostgresBlogSocialRepository(engine)
 
     app = FastAPI(title=resolved_settings.app_name)
     app.state.settings = resolved_settings
@@ -429,6 +440,29 @@ def create_app(
                 status_code=404, detail="Published AI news item not found"
             )
         return item
+
+    # Blog social features (reactions, bookmarks, comments)
+    app.include_router(
+        create_blog_social_routes(
+            social_repo,
+            repository,
+            resolved_settings,
+        )
+    )
+    app.include_router(
+        create_blog_social_admin_routes(
+            social_repo,
+            repository,
+            resolved_settings,
+        )
+    )
+    app.include_router(
+        create_user_bookmarks_routes(
+            social_repo,
+            repository,
+            resolved_settings,
+        )
+    )
 
     return app
 

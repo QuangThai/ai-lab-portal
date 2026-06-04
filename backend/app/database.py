@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, MetaData, String, Table, Text, UniqueConstraint, create_engine
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Index, Integer, MetaData, String, Table, Text, UniqueConstraint, create_engine, text
 from sqlalchemy.engine import Engine
 
 from backend.app.settings import Settings
@@ -276,4 +276,47 @@ news_submitted_links = Table(
     UniqueConstraint("url_normalized", name="uq_news_submitted_links_url_normalized"),
     Index("ix_news_submitted_links_status", "status"),
     Index("ix_news_submitted_links_rate_key", "rate_limit_key"),
+)
+
+blog_reactions = Table(
+    "blog_reactions",
+    metadata,
+    Column("id", String(64), primary_key=True),
+    Column("post_id", String(64), ForeignKey("blog_posts.id", ondelete="CASCADE"), nullable=False),
+    Column("user_id", String(255), nullable=False),
+    Column("user_email", String(320), nullable=True),
+    Column("emoji", String(32), nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("post_id", "user_id", "emoji", name="uq_blog_reactions_post_user_emoji"),
+    Index("ix_blog_reactions_post_id", "post_id"),
+)
+
+blog_bookmarks = Table(
+    "blog_bookmarks",
+    metadata,
+    Column("id", String(64), primary_key=True),
+    Column("post_id", String(64), ForeignKey("blog_posts.id", ondelete="CASCADE"), nullable=False),
+    Column("user_id", String(255), nullable=False),
+    Column("user_email", String(320), nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    UniqueConstraint("post_id", "user_id", name="uq_blog_bookmarks_post_user"),
+    Index("ix_blog_bookmarks_user_id", "user_id"),
+    Index("ix_blog_bookmarks_post_id", "post_id"),
+)
+
+blog_comments = Table(
+    "blog_comments",
+    metadata,
+    Column("id", String(64), primary_key=True),
+    Column("post_id", String(64), ForeignKey("blog_posts.id", ondelete="CASCADE"), nullable=False),
+    Column("user_id", String(255), nullable=False),
+    Column("user_email", String(320), nullable=True),
+    Column("user_name", String(160), nullable=True),
+    Column("parent_id", String(64), ForeignKey("blog_comments.id", ondelete="SET NULL"), nullable=True),
+    Column("content", Text, nullable=False),
+    Column("status", String(32), nullable=False, server_default=text("'pending'")),
+    Column("created_at", DateTime(timezone=True), nullable=False),
+    Column("updated_at", DateTime(timezone=True), nullable=True),
+    Index("ix_blog_comments_post_id", "post_id"),
+    Index("ix_blog_comments_status", "status"),
 )

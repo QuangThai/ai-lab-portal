@@ -5,6 +5,8 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Pencil } from "lucide-react";
 
+import { BlogComments } from "@/components/blog/blog-comments";
+import { BlogSocialBar } from "@/components/blog/blog-social-bar";
 import { PublicArticleHeader } from "@/components/public/public-article-header";
 import { PublicBackLink } from "@/components/public/public-back-link";
 import { PublicPageShell } from "@/components/public/public-page-shell";
@@ -12,9 +14,12 @@ import { PublicProse } from "@/components/public/public-prose";
 import { publicMainWidthClass } from "@/components/public/public-ui";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { getPublishedBlogPost } from "@/lib/blog/posts";
+import { getSocialStats, listComments } from "@/lib/blog/social";
 import { auth } from "@/lib/auth/server";
 import { createPublicMetadata } from "@/lib/seo/metadata";
 import { cn } from "@/lib/utils";
+
+import { toggleReactionAction, toggleBookmarkAction, createCommentAction } from "../actions";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +54,13 @@ export default async function BlogDetailPage({ params }: { params: Promise<{ slu
   if (!post) {
     notFound();
   }
+
+  const [socialStats, comments] = session
+    ? await Promise.all([
+        getSocialStats(slug, session).catch(() => null),
+        listComments(slug, session).catch(() => []),
+      ])
+    : [null, []];
 
   const jsonLd = {
     "@context": "https://schema.org",
@@ -109,6 +121,22 @@ export default async function BlogDetailPage({ params }: { params: Promise<{ slu
         />
 
         <PublicProse contentMarkdown={post.contentMarkdown} />
+
+        {/* Social features */}
+        <BlogSocialBar
+          isAuthenticated={!!session}
+          initialStats={socialStats}
+          slug={slug}
+          onToggleReaction={session ? toggleReactionAction : undefined}
+          onToggleBookmark={session ? toggleBookmarkAction : undefined}
+        />
+
+        <BlogComments
+          initialComments={comments}
+          isAuthenticated={!!session}
+          slug={slug}
+          onCreateComment={session ? createCommentAction : undefined}
+        />
       </article>
     </PublicPageShell>
   );
