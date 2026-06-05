@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 
 import { ReducedMotionProvider } from "@/components/reduced-motion-provider";
+import { SessionProvider } from "@/components/session-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 
@@ -16,8 +17,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" suppressHydrationWarning>
       <body>
         <ThemeProvider>
-          <ReducedMotionProvider>{children}</ReducedMotionProvider>
-          <Toaster position="bottom-right" richColors />
+          <SessionProvider>
+            <ReducedMotionProvider>{children}</ReducedMotionProvider>
+            <Toaster position="bottom-right" richColors />
+          </SessionProvider>
         </ThemeProvider>
       </body>
     </html>

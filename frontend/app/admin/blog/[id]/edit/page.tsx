@@ -2,7 +2,6 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import { AdminBackLink } from "@/components/admin/admin-back-link";
-import { AdminCmsShell } from "@/components/admin/admin-cms-shell";
 import { adminPageStackClass } from "@/components/admin/admin-ui";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { BlogEditor } from "@/components/admin/blog-editor";
@@ -64,7 +63,6 @@ export default async function AdminBlogEditPage({
   if (!post) notFound();
 
   return (
-    <AdminCmsShell active="blog">
       <div className={adminPageStackClass}>
         <AdminPageHeader
           actions={<AdminBackLink href="/admin/blog">Back to posts</AdminBackLink>}
@@ -89,6 +87,5 @@ export default async function AdminBlogEditPage({
           saveDraftAction={saveDraftAction}
         />
       </div>
-    </AdminCmsShell>
   );
 }

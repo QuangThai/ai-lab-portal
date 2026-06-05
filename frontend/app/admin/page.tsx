@@ -1,85 +1,42 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import {
+  Activity,
+  ArrowUpRight,
   Briefcase,
   FileText,
   Lightbulb,
+  Newspaper,
   PencilLine,
+  Rss,
   Shield,
   Sparkles,
-  Newspaper,
-  Rss,
 } from "lucide-react";
 
-import { AdminCmsShell } from "@/components/admin/admin-cms-shell";
 import { AdminDashboardHeader } from "@/components/admin/admin-dashboard-header";
 import { AdminDashboardStatGrid } from "@/components/admin/admin-dashboard-stat-grid";
 import { AdminModuleCard, type AdminModuleCardProps } from "@/components/admin/admin-module-card";
 import {
   adminCardClass,
   adminPageStackClass,
-  adminSectionPanelClass,
-  adminSectionTitleClass,
 } from "@/components/admin/admin-ui";
+
 import { auth } from "@/lib/auth/server";
 import { fetchAdminDashboardStats } from "@/lib/admin/fetch-dashboard-stats";
 import { cn } from "@/lib/utils";
 
 const liveModules: AdminModuleCardProps[] = [
-  {
-    title: "Blog posts",
-    description: "Review drafts, publish articles, and manage the editorial library.",
-    href: "/admin/blog",
-    icon: FileText,
-    status: "live",
-  },
-  {
-    title: "Compose",
-    description: "Open the Tiptap workspace for a new article or quick edits.",
-    href: "/admin/blog/editor",
-    icon: PencilLine,
-    status: "live",
-  },
-  {
-    title: "Blog ideas",
-    description: "Approve angles, generate outlines, and route drafts through the pipeline.",
-    href: "/admin/blog-ideas",
-    icon: Lightbulb,
-    status: "live",
-  },
-  {
-    title: "Projects",
-    description: "Showcase company projects and internal tools with full CRUD workflow.",
-    href: "/admin/projects",
-    icon: Briefcase,
-    status: "live",
-  },
-  {
-    title: "Showcases",
-    description: "Publish client-ready delivery stories with industry metadata.",
-    href: "/admin/showcases",
-    icon: Briefcase,
-    status: "live",
-  },
-  {
-    title: "AI News review",
-    description: "Approve, reject, and publish scored intelligence candidates.",
-    href: "/admin/news-review",
-    icon: Newspaper,
-    status: "live",
-  },
-  {
-    title: "AI News sources",
-    description: "Configure RSS and official feeds for the intelligence pipeline.",
-    href: "/admin/news-sources",
-    icon: Rss,
-    status: "live",
-  },
+  { title: "Blog posts", description: "Review drafts, publish articles, and manage the editorial library.", href: "/admin/blog", icon: FileText, status: "live" },
+  { title: "Compose", description: "Open the Tiptap workspace for a new article or quick edits.", href: "/admin/blog/editor", icon: PencilLine, status: "live" },
+  { title: "Blog ideas", description: "Approve angles, generate outlines, and route drafts through the pipeline.", href: "/admin/blog-ideas", icon: Lightbulb, status: "live" },
+  { title: "Projects", description: "Showcase company projects and internal tools with full CRUD workflow.", href: "/admin/projects", icon: Briefcase, status: "live" },
+  { title: "Showcases", description: "Publish client-ready delivery stories with industry metadata.", href: "/admin/showcases", icon: Briefcase, status: "live" },
+  { title: "AI News review", description: "Approve, reject, and publish scored intelligence candidates.", href: "/admin/news-review", icon: Newspaper, status: "live" },
+  { title: "AI News sources", description: "Configure RSS and official feeds for the intelligence pipeline.", href: "/admin/news-sources", icon: Rss, status: "live" },
 ];
 
 const plannedModules: AdminModuleCardProps[] = [
   { title: "Editorial queue", description: "AI-assisted review queues and human approval routing.", icon: Sparkles, status: "planned" },
-
   { title: "Prompt registry", description: "Versioned prompts and provider configuration.", icon: Sparkles, status: "planned" },
   { title: "Publishing checks", description: "Preflight SEO, link, and metadata validation.", icon: Sparkles, status: "planned" },
 ];
@@ -98,81 +55,93 @@ export default async function AdminDashboardPage() {
   ];
 
   return (
-    <AdminCmsShell active="dashboard">
-      <div className={adminPageStackClass}>
-        <AdminDashboardHeader
-          description="A calmer publishing cockpit for reviewing ideas, drafting articles, and keeping public content intentional."
-          email={session.user.email}
-          title="Operations dashboard"
-        />
+    <div className={adminPageStackClass}>
+      <AdminDashboardHeader
+        description="A calmer publishing cockpit for reviewing ideas, drafting articles, and keeping public content intentional."
+        email={session.user.email}
+        title="Operations dashboard"
+      />
 
-        <AdminDashboardStatGrid stats={statCards} />
+      <AdminDashboardStatGrid stats={statCards} />
 
-        {stats.recentActivity.length > 0 && (
-          <section className={adminSectionPanelClass}>
-            <div className="border-b border-border px-4 py-4 sm:px-5">
-              <h2 className={adminSectionTitleClass}>Recent activity</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Latest editorial actions across the system.
-              </p>
+      {/* ── Live workflows ── */}
+      <section className="rounded-[var(--radius-admin-md)] border border-border/60 bg-card shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+        <div className="border-b border-border/50 px-5 py-3.5">
+          <h2 className="text-sm font-semibold text-foreground">Live workflows</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Everything here is wired to the FastAPI admin boundary today.
+          </p>
+        </div>
+        <div className="grid gap-2 p-3.5 sm:grid-cols-2 xl:grid-cols-3 sm:p-4">
+          {liveModules.map((module) => (
+            <AdminModuleCard key={module.title} compact {...module} />
+          ))}
+        </div>
+      </section>
+
+      {/* ── Recent activity + Roadmap ⎯ side by side ── */}
+      <div className="grid gap-5 lg:grid-cols-[1fr_22rem]">
+        {/* Recent activity */}
+        {stats.recentActivity.length > 0 ? (
+          <section className={cn(adminCardClass, "flex flex-col")}>
+            <div className="flex items-center gap-2.5 border-b border-border/50 px-5 py-4">
+              <Activity className="size-4 text-muted-foreground" aria-hidden />
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Recent activity</h2>
+                <p className="mt-px text-sm text-muted-foreground">Latest editorial actions.</p>
+              </div>
             </div>
-            <div className="divide-y divide-border">
-              {stats.recentActivity.slice(0, 8).map((event, i) => (
-                <div key={i} className="flex items-center justify-between px-4 py-3 text-sm sm:px-5">
-                  <span className="text-foreground">{event.action}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {event.actorEmail}
-                    <span className="ml-2">{new Date(event.createdAt).toLocaleString()}</span>
+            <div className="flex-1 divide-y divide-border/30">
+              {stats.recentActivity.slice(0, 6).map((event, i) => (
+                <div key={i} className="flex items-center justify-between gap-3 px-5 py-3 text-sm transition-colors hover:bg-muted/10">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="size-1.5 shrink-0 rounded-full bg-brand/60" aria-hidden />
+                    <span className="truncate text-foreground">{event.action}</span>
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground/70">
+                    {new Date(event.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
                   </span>
                 </div>
               ))}
             </div>
           </section>
-        )}
+        ) : null}
 
-        <section className={adminSectionPanelClass}>
-          <div className="grid gap-3 border-b border-border px-4 py-4 sm:px-5 lg:grid-cols-[minmax(0,1fr)_14rem] lg:items-end">
-            <div>
-              <h2 className={adminSectionTitleClass}>Live workflows</h2>
-              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                Everything here is wired to the FastAPI admin boundary today.
-              </p>
+        {/* Right column: Roadmap + Human review */}
+        <div className="flex flex-col gap-5">
+          <div className={cn(adminCardClass, "p-5")}>
+            <div className="flex items-center gap-2.5">
+              <span className="flex size-8 items-center justify-center rounded-[var(--radius-admin-sm)] bg-accent text-brand ring-1 ring-brand/10">
+                <Sparkles className="size-4" aria-hidden />
+              </span>
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Roadmap</h2>
+                <p className="mt-px text-xs text-muted-foreground">What&apos;s coming next</p>
+              </div>
             </div>
-            <p className="rounded-md border border-border bg-muted/25 p-3 text-xs leading-relaxed text-muted-foreground">
-              Pick a workflow, make the smallest editorial move, then return here to scan the system.
-            </p>
-          </div>
-          <div className="grid gap-2 p-3 sm:grid-cols-2 sm:p-4">
-            {liveModules.map((module) => (
-              <AdminModuleCard key={module.title} {...module} />
-            ))}
-          </div>
-        </section>
-
-        <section className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_16rem]">
-          <div className={cn(adminCardClass, "p-4")}>
-            <h2 className={adminSectionTitleClass}>Roadmap parking lot</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Visible, but deliberately separate from what can be used today.
-            </p>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <div className="mt-4 grid gap-2.5">
               {plannedModules.map((module) => (
                 <AdminModuleCard key={module.title} {...module} />
               ))}
             </div>
           </div>
 
-          <div className={cn(adminCardClass, "p-4")}>
-            <span className="flex h-9 w-9 items-center justify-center rounded-md bg-accent text-brand">
-              <Shield className="size-4" aria-hidden />
-            </span>
-            <h2 className={cn(adminSectionTitleClass, "mt-3")}>Human review stays in the loop</h2>
-            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+          <div className={cn(adminCardClass, "p-5")}>
+            <div className="flex items-center gap-2.5">
+              <span className="flex size-8 items-center justify-center rounded-[var(--radius-admin-sm)] bg-accent text-brand ring-1 ring-brand/10">
+                <Shield className="size-4" aria-hidden />
+              </span>
+              <div>
+                <h2 className="text-sm font-semibold text-foreground">Human review</h2>
+                <p className="mt-px text-xs text-muted-foreground">Keeps publishing deliberate</p>
+              </div>
+            </div>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
               Roles, provider workflows, and automated drafting arrive in later story slices. Today this shell keeps publishing deliberate and inspectable.
             </p>
           </div>
-        </section>
+        </div>
       </div>
-    </AdminCmsShell>
+    </div>
   );
 }

@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { AdminCmsShell } from "@/components/admin/admin-cms-shell";
 import { adminPageStackClass } from "@/components/admin/admin-ui";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { ShowcaseEditor } from "@/components/admin/showcase-editor";
@@ -13,7 +12,6 @@ export default async function AdminShowcaseEditorPage() {
   if (!session) redirect("/admin/login");
 
   return (
-    <AdminCmsShell active="showcase-editor">
       <div className={adminPageStackClass}>
         <AdminPageHeader
           description="Compose a client-ready showcase with human-reviewed delivery narrative."
@@ -23,6 +21,5 @@ export default async function AdminShowcaseEditorPage() {
 
         <ShowcaseEditor publishAction={publishAction} saveDraftAction={saveDraftAction} />
       </div>
-    </AdminCmsShell>
   );
 }

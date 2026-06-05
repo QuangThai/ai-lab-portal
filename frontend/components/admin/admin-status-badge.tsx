@@ -8,7 +8,10 @@ type AdminStatusBadgeProps = {
 export function AdminStatusBadge({ status }: AdminStatusBadgeProps) {
   return (
     <Badge
-      className={cn("rounded-md font-normal", status === "draft" && "text-muted-foreground")}
+      className={cn(
+        "rounded-[var(--radius-admin-sm)] font-normal transition-colors",
+        status === "draft" && "text-muted-foreground"
+      )}
       variant={status === "published" ? "success" : "outline"}
     >
       {status}

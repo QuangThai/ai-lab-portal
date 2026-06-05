@@ -233,18 +233,18 @@ function CommentCard({
               {formatRelativeTime(node.created_at)}
             </span>
 
-            {/* Actions (show on hover or for own comments) */}
+            {/* Actions (always visible on mobile, hover on desktop) */}
             <div className={cn(
               "ml-auto flex items-center gap-0.5",
-              "opacity-0 group-hover/comment:opacity-100 transition-opacity",
-              isOwn && "opacity-100",
+              "md:opacity-0 md:group-hover/comment:opacity-100 transition-opacity",
+              isOwn && "md:opacity-100",
             )}>
               {showActions && (
                 <button
                   type="button"
                   onClick={handleReaction}
                   className={cn(
-                    "flex items-center gap-1 rounded-md px-1.5 py-1 text-xs transition-colors",
+                    "flex items-center gap-1 rounded-md px-1.5 py-1 text-xs transition-colors min-h-[44px]",
                     isReacted ? "text-red-500" : "text-muted-foreground hover:text-foreground hover:bg-muted",
                   )}
                   aria-label={isReacted ? "Remove reaction" : "Like this comment"}
@@ -257,7 +257,7 @@ function CommentCard({
                 <button
                   type="button"
                   onClick={() => setShowReplyForm(!showReplyForm)}
-                  className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors min-h-[44px]"
                 >
                   <MessageCircle className="size-3.5" />
                   Reply
@@ -268,7 +268,7 @@ function CommentCard({
                   <button
                     type="button"
                     onClick={() => setIsEditing(true)}
-                    className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                    className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors min-h-[44px]"
                     aria-label="Edit comment"
                   >
                     <Pencil className="size-3.5" />
@@ -279,14 +279,14 @@ function CommentCard({
                         type="button"
                         onClick={handleDelete}
                         disabled={isSubmitting}
-                        className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                        className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors min-h-[44px]"
                       >
                         <Check className="size-3.5" /> Delete
                       </button>
                       <button
                         type="button"
                         onClick={() => setShowDeleteConfirm(false)}
-                        className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-muted transition-colors"
+                        className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:bg-muted transition-colors min-h-[44px]"
                       >
                         <X className="size-3.5" />
                       </button>
@@ -295,7 +295,7 @@ function CommentCard({
                     <button
                       type="button"
                       onClick={() => setShowDeleteConfirm(true)}
-                      className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:text-red-500 hover:bg-muted transition-colors"
+                      className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-muted-foreground hover:text-red-500 hover:bg-muted transition-colors min-h-[44px]"
                       aria-label="Delete comment"
                     >
                       <Trash2 className="size-3.5" />

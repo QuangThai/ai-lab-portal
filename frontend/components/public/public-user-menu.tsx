@@ -13,16 +13,8 @@ import {
 } from "lucide-react";
 
 import { NotificationBell } from "@/components/public/notification-bell";
+import { useSession } from "@/components/session-provider";
 import { cn } from "@/lib/utils";
-
-type UserSession = {
-  user: {
-    id: string;
-    name: string;
-    email: string;
-    image?: string | null;
-  };
-} | null;
 
 function AvatarFallback({ name, size = "sm" }: { name: string; size?: "sm" | "md" }) {
   const initial = name?.charAt(0)?.toUpperCase() ?? "?";
@@ -42,36 +34,15 @@ function AvatarFallback({ name, size = "sm" }: { name: string; size?: "sm" | "md
 
 export function PublicUserMenu() {
   const router = useRouter();
-  const [session, setSession] = useState<UserSession>(null);
-  const [loading, setLoading] = useState(true);
+  const { session, loading, refresh } = useSession();
   const [open, setOpen] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">("light");
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // Fetch session
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/auth/get-session")
-      .then((r) => r.json())
-      .then((data: UserSession) => {
-        if (!cancelled) setSession(data);
-      })
-      .catch(() => {
-        if (!cancelled) setSession(null);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // Detect theme
+  // Detect theme (local, no server round-trip)
   useEffect(() => {
     const html = document.documentElement;
-    const isDark = html.classList.contains("dark");
-    setTheme(isDark ? "dark" : "light");
+    setTheme(html.classList.contains("dark") ? "dark" : "light");
     const observer = new MutationObserver(() => {
       setTheme(html.classList.contains("dark") ? "dark" : "light");
     });
@@ -95,7 +66,7 @@ export function PublicUserMenu() {
     setOpen(false);
     try {
       await fetch("/api/auth/sign-out", { method: "POST" });
-      setSession(null);
+      refresh();
       router.refresh();
     } catch {
       // ignore
@@ -109,15 +80,23 @@ export function PublicUserMenu() {
     setTheme(next);
   }
 
-  if (loading) {
+  // ── First fetch still in-flight ──────────────────────────────────────────
+  // Render invisible placeholders with the exact same dimensions as the
+  // logged-out UI so the layout is stable from paint 1. No skeleton pulse,
+  // no spinner, no layout shift when the fetch completes.
+  if (loading && !session) {
     return (
-      <div className="flex items-center gap-2">
-        <div className="h-8 w-8 animate-pulse rounded-full bg-muted" />
+      <div className="invisible flex items-center gap-1.5" aria-hidden>
+        <div className="flex h-10 w-10 items-center justify-center rounded-full">
+          <Moon className="size-4" />
+        </div>
+        <div className="hidden h-10 w-[68px] rounded-full sm:block" />
+        <div className="h-10 w-[112px] rounded-full" />
       </div>
     );
   }
 
-  // ─── Not logged in ───────────────────────────────────────────────────────────
+  // ── Confirmed: not logged in ─────────────────────────────────────────────
   if (!session) {
     return (
       <div className="flex items-center gap-1.5">
@@ -145,7 +124,7 @@ export function PublicUserMenu() {
     );
   }
 
-  // ─── Logged in ───────────────────────────────────────────────────────────────
+  // ── Confirmed: logged in ─────────────────────────────────────────────────
   const userName = session.user.name || session.user.email || "User";
   const userImage = session.user.image;
 

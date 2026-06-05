@@ -51,12 +51,12 @@ type AdminWorkflowCardProps = {
 
 export function AdminWorkflowCard({ children, className, description, title }: AdminWorkflowCardProps) {
   return (
-    <Card className={cn(adminCardClass, "lg:sticky lg:top-4", className)}>
+    <Card className={cn(adminCardClass, "lg:sticky lg:top-5", className)}>
       <div className={adminEditorSectionClass}>
         <h2 className={adminSectionTitleClass}>{title}</h2>
         <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{description}</p>
       </div>
-      <div className="flex flex-col gap-3 p-4 sm:p-5">{children}</div>
+      <div className="flex flex-col gap-3 p-5">{children}</div>
     </Card>
   );
 }

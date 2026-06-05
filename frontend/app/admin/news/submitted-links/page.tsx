@@ -2,7 +2,6 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ExternalLink, RefreshCw, Eye as EyeIcon } from "lucide-react";
 
-import { AdminCmsShell } from "@/components/admin/admin-cms-shell";
 import { AdminContentRow } from "@/components/admin/admin-content-row";
 import { AdminEmptyState } from "@/components/admin/admin-empty-state";
 import { AdminListActionLink, AdminListActions, AdminListActionForm, AdminListSubmitButton } from "@/components/admin/admin-list-actions";
@@ -78,7 +77,6 @@ export default async function AdminSubmittedLinksListPage() {
   };
 
   return (
-    <AdminCmsShell active="submitted-links">
       <div className={adminPageStackClass}>
         <AdminListToolbar
           description="User-submitted AI news links awaiting review, processing, or marked as duplicate or failed."
@@ -148,6 +146,5 @@ export default async function AdminSubmittedLinksListPage() {
           </div>
         )}
       </div>
-    </AdminCmsShell>
   );
 }

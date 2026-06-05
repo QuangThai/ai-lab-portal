@@ -2,7 +2,6 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { ExternalLink, RefreshCw } from "lucide-react";
 
-import { AdminCmsShell } from "@/components/admin/admin-cms-shell";
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AdminCard, AdminCardBody, AdminCardSection } from "@/components/admin/admin-card";
 import { adminPageStackClass } from "@/components/admin/admin-ui";
@@ -64,7 +63,6 @@ export default async function AdminSubmittedLinkDetailPage({
   if (!item) notFound();
 
   return (
-    <AdminCmsShell active="submitted-links">
       <div className={adminPageStackClass}>
         <AdminPageHeader
           actions={<AdminBackLink href="/admin/news/submitted-links">Back to submissions</AdminBackLink>}
@@ -200,6 +198,5 @@ export default async function AdminSubmittedLinkDetailPage({
           </form>
         </div>
       </div>
-    </AdminCmsShell>
   );
 }

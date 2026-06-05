@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { AdminCmsShell } from "@/components/admin/admin-cms-shell";
 import { AdminListToolbar } from "@/components/admin/admin-list-toolbar";
 import { adminPageStackClass } from "@/components/admin/admin-ui";
 import { createAdminBoundaryHeaders } from "@/lib/admin/fastapi-boundary";
@@ -80,7 +79,6 @@ export default async function AdminNewsReviewPage() {
   const publishedCount = items.filter((item) => item.review_status === "published").length;
 
   return (
-    <AdminCmsShell active="news-review">
       <div className={adminPageStackClass}>
         <AdminListToolbar
           ctaHref="/admin/news-sources"
@@ -102,6 +100,5 @@ export default async function AdminNewsReviewPage() {
           unpublishAction={unpublishReviewItemAction}
         />
       </div>
-    </AdminCmsShell>
   );
 }

@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { AdminCmsShell } from "@/components/admin/admin-cms-shell";
 import { adminPageStackClass } from "@/components/admin/admin-ui";
 import { AdminListToolbar } from "@/components/admin/admin-list-toolbar";
 import { createAdminBoundaryHeaders } from "@/lib/admin/fastapi-boundary";
@@ -49,7 +48,6 @@ export default async function AdminBlogIdeasPage() {
   const approvedCount = ideas.filter((i) => i.status === "approved").length;
 
   return (
-    <AdminCmsShell active="ideas">
       <div className={adminPageStackClass}>
         <AdminListToolbar
           ctaHref="/admin/blog-ideas/new"
@@ -72,6 +70,5 @@ export default async function AdminBlogIdeasPage() {
           generateDraftAction={generateDraftAction}
         />
       </div>
-    </AdminCmsShell>
   );
 }

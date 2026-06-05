@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -27,7 +28,23 @@ export function MarkdownContent({ className, markdown }: MarkdownContentProps) {
         className
       )}
     >
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>{markdown}</ReactMarkdown>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        components={{
+          img: ({
+            node: _node,
+            ...props
+          }: ComponentProps<"img"> & { node?: unknown }) => (
+            <img
+              loading="lazy"
+              decoding="async"
+              {...props}
+            />
+          ),
+        }}
+      >
+        {markdown}
+      </ReactMarkdown>
     </div>
   );
 }

@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { AdminCmsShell } from "@/components/admin/admin-cms-shell";
 import { AdminListToolbar } from "@/components/admin/admin-list-toolbar";
 import { adminPageStackClass } from "@/components/admin/admin-ui";
 import { createAdminBoundaryHeaders } from "@/lib/admin/fastapi-boundary";
@@ -44,7 +43,6 @@ export default async function AdminBlogListPage() {
   const draftCount = posts.length - publishedCount;
 
   return (
-    <AdminCmsShell active="blog">
       <div className={adminPageStackClass}>
         <AdminListToolbar
           ctaHref="/admin/blog/editor"
@@ -65,6 +63,5 @@ export default async function AdminBlogListPage() {
           unpublishAction={unpublishFromListAction}
         />
       </div>
-    </AdminCmsShell>
   );
 }

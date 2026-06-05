@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { AdminCmsShell } from "@/components/admin/admin-cms-shell";
 import { createAdminBoundaryHeaders } from "@/lib/admin/fastapi-boundary";
 import { auth } from "@/lib/auth/server";
 import { GenerationJobPoller } from "../generation-job-poller";
@@ -103,7 +102,7 @@ export default async function AdminBlogIdeaDetailPage({
   const claims = await getClaims(id);
 
   return (
-    <AdminCmsShell active="ideas">
+    <>
       <GenerationJobPoller
         ideaId={id}
         taskId={query.taskId}
@@ -133,6 +132,6 @@ export default async function AdminBlogIdeaDetailPage({
           updateClaim: updateClaimAction,
         }}
       />
-    </AdminCmsShell>
+    </>
   );
 }

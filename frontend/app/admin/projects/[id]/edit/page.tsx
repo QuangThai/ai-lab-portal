@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
-import { AdminCmsShell } from "@/components/admin/admin-cms-shell";
 import { adminPageStackClass } from "@/components/admin/admin-ui";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { ProjectEditor } from "@/components/admin/project-editor";
@@ -55,7 +54,6 @@ export default async function AdminProjectEditPage({ params }: Props) {
   }
 
   return (
-    <AdminCmsShell active="project-editor">
       <div className={adminPageStackClass}>
         <AdminPageHeader
           description={`Editing "${project.title}"`}
@@ -74,6 +72,5 @@ export default async function AdminProjectEditPage({ params }: Props) {
           saveDraftAction={saveDraftAction}
         />
       </div>
-    </AdminCmsShell>
   );
 }

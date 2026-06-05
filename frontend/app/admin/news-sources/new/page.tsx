@@ -2,7 +2,6 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { AdminBackLink } from "@/components/admin/admin-back-link";
-import { AdminCmsShell } from "@/components/admin/admin-cms-shell";
 import { ButtonLink } from "@/components/ui/button-link";
 import { adminPageStackClass, adminPageTitleClass, adminPanelClass } from "@/components/admin/admin-ui";
 import { buttonVariants } from "@/components/ui/button-variants";
@@ -15,7 +14,6 @@ export default async function NewNewsSourcePage() {
   if (!session) redirect("/admin/login");
 
   return (
-    <AdminCmsShell active="news">
       <div className={adminPageStackClass}>
         <AdminBackLink href="/admin/news-sources">Back to sources</AdminBackLink>
         <h1 className={adminPageTitleClass}>Add news source</h1>
@@ -66,6 +64,5 @@ export default async function NewNewsSourcePage() {
           </div>
         </form>
       </div>
-    </AdminCmsShell>
   );
 }

@@ -2,7 +2,6 @@ import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 
 import { AdminBackLink } from "@/components/admin/admin-back-link";
-import { AdminCmsShell } from "@/components/admin/admin-cms-shell";
 import { adminPageStackClass } from "@/components/admin/admin-ui";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { ShowcaseEditor } from "@/components/admin/showcase-editor";
@@ -52,7 +51,6 @@ export default async function AdminShowcaseEditPage({
   if (!item) notFound();
 
   return (
-    <AdminCmsShell active="showcases">
       <div className={adminPageStackClass}>
         <AdminPageHeader
           actions={<AdminBackLink href="/admin/showcases">Back to showcases</AdminBackLink>}
@@ -76,6 +74,5 @@ export default async function AdminShowcaseEditPage({
           saveDraftAction={saveDraftAction}
         />
       </div>
-    </AdminCmsShell>
   );
 }

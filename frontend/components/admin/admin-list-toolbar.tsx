@@ -27,15 +27,19 @@ type Props = {
 export function AdminListToolbar({ ctaHref, ctaLabel, description, eyebrow, metrics, secondaryAction, title }: Props) {
   return (
     <header className={cn(adminPageHeaderSurfaceClass)}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className={adminEyebrowClass}>{eyebrow}</p>
-          <h1 className={cn(adminDisplayTitleClass, "mt-1")}>{title}</h1>
-          <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">{description}</p>
+          <h1 className={cn(adminDisplayTitleClass, "mt-1.5")}>{title}</h1>
+          <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">{description}</p>
           {metrics && metrics.length > 0 && (
             <ul className="mt-3 flex flex-wrap items-center gap-1.5 text-sm tabular-nums text-muted-foreground">
               {metrics.map((m) => (
-                <li key={m.label} className="rounded-md border border-border bg-muted/30 px-2 py-0.5 text-xs">
+                <li
+                  key={m.label}
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-admin-sm)] border border-border/50 bg-muted/20 px-2.5 py-0.5 text-xs"
+                >
+                  <span className={cn("size-1.5 rounded-full", m.dotClassName)} aria-hidden />
                   {m.label}
                 </li>
               ))}

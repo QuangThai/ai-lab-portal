@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { AdminCmsShell } from "@/components/admin/admin-cms-shell";
 import { AdminListToolbar } from "@/components/admin/admin-list-toolbar";
 import { adminPageStackClass } from "@/components/admin/admin-ui";
 import { createAdminBoundaryHeaders } from "@/lib/admin/fastapi-boundary";
@@ -39,7 +38,6 @@ export default async function AdminNewsSourcesPage() {
   const enabledCount = items.filter((item) => item.is_enabled).length;
 
   return (
-    <AdminCmsShell active="news">
       <div className={adminPageStackClass}>
         <AdminListToolbar
           ctaHref="/admin/news-sources/new"
@@ -54,6 +52,5 @@ export default async function AdminNewsSourcesPage() {
         />
         <NewsSourceCardList items={items} toggleAction={toggleNewsSourceAction} />
       </div>
-    </AdminCmsShell>
   );
 }

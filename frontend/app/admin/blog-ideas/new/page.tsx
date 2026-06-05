@@ -1,6 +1,5 @@
 import { AdminBackLink } from "@/components/admin/admin-back-link";
 import { AdminCard, AdminCardBody } from "@/components/admin/admin-card";
-import { AdminCmsShell } from "@/components/admin/admin-cms-shell";
 import { AdminFormField, AdminInput, AdminTextarea } from "@/components/admin/admin-form";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { adminPageStackClass } from "@/components/admin/admin-ui";
@@ -10,7 +9,6 @@ import { createIdeaAction } from "./actions";
 
 export default function NewBlogIdeaPage() {
   return (
-    <AdminCmsShell active="ideas">
       <div className={adminPageStackClass}>
         <AdminPageHeader
           description="Create a blog idea manually."
@@ -70,6 +68,5 @@ export default function NewBlogIdeaPage() {
           </AdminCardBody>
         </AdminCard>
       </div>
-    </AdminCmsShell>
   );
 }

@@ -24,14 +24,14 @@ export function AdminPageHeader({ actions, description, eyebrow = "Admin CMS", m
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           {eyebrow && <p className={adminEyebrowClass}>{eyebrow}</p>}
-          <h1 className={cn(adminDisplayTitleClass, eyebrow && "mt-1")}>{title}</h1>
-          <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">{description}</p>
+          <h1 className={cn(adminDisplayTitleClass, eyebrow && "mt-1.5")}>{title}</h1>
+          <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-muted-foreground">{description}</p>
           {(status || metaText || stats) && (
             <div className="mt-3 flex flex-wrap items-center gap-2">
               {status && <AdminStatusBadge status={status} />}
               {metaText && <span className="text-sm text-muted-foreground">{metaText}</span>}
               {stats?.map((s) => (
-                <Badge key={s.label} className="rounded-md font-normal" variant={s.variant ?? "outline"}>
+                <Badge key={s.label} className="rounded-[var(--radius-admin-sm)] font-normal" variant={s.variant ?? "outline"}>
                   {s.label}
                 </Badge>
               ))}

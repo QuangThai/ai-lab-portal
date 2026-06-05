@@ -81,9 +81,4 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/** Increase body size limit for image uploads */
-export const config = {
-  api: {
-    bodyParser: false,
-  },
-};
+
