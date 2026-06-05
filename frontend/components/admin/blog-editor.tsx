@@ -129,6 +129,10 @@ export function BlogEditor({
   };
 
   const [contentMarkdown, setContentMarkdown] = useState(initialContentMarkdown);
+  // Track latest markdown in a ref so form submission always gets the current
+  // editor content regardless of React batching timing.
+  const contentMarkdownRef = useRef(initialContentMarkdown);
+  useEffect(() => { contentMarkdownRef.current = contentMarkdown; }, [contentMarkdown]);
   const [imageUrl, setImageUrl] = useState(initialImageUrl);
   const [selectedTags, setSelectedTags] = useState<string[]>(initialTagNames.slice(0, 4));
   const [tagDraft, setTagDraft] = useState("");
@@ -163,12 +167,40 @@ export function BlogEditor({
     publishStatusRef.current = publishState.status;
   }, [publishState.status]);
 
+  const formRef = useRef<HTMLFormElement>(null);
+
+  // Before the form serialises its data we sync the hidden input DOM value
+  // directly from the ref, bypassing any pending React batch.
+  const handleFormSubmit = () => {
+    if (!formRef.current) return;
+    const input = formRef.current.elements.namedItem("contentMarkdown") as HTMLInputElement | null;
+    if (input) {
+      input.value = contentMarkdownRef.current;
+    }
+  };
+
   return (
-    <form action={saveFormAction} className={adminEditorGridClass}>
+    <form
+      ref={formRef}
+      action={saveFormAction}
+      onSubmit={handleFormSubmit}
+      className={adminEditorGridClass}
+    >
       <input name="postId" type="hidden" value={visibleState.postId} />
       <input name="authorName" type="hidden" value={initialAuthorName} />
       <input name="slug" type="hidden" value={slugState.slug} />
-      <input name="contentMarkdown" type="hidden" value={contentMarkdown} />
+      <input
+        name="contentMarkdown"
+        type="hidden"
+        value={contentMarkdown}
+        ref={(el) => {
+          // Sync DOM value directly on every render — this guarantees FormData
+          // picks up the latest markdown even when React batches delay state commits.
+          if (el && el.value !== contentMarkdownRef.current) {
+            el.value = contentMarkdownRef.current;
+          }
+        }}
+      />
       <input name="imageUrl" type="hidden" value={imageUrl} />
       <input name="tagNames" type="hidden" value={selectedTags.join(", ")} />
 
