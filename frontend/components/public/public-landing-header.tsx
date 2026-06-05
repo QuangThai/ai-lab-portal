@@ -62,7 +62,7 @@ export function PublicLandingHeader({ currentPath }: PublicLandingHeaderProps) {
         {/* Desktop nav */}
         <nav
           aria-label="Public navigation"
-          className="hidden items-center gap-1 overflow-x-auto pb-0.5 text-sm font-semibold [-ms-overflow-style:none] scrollbar-none [&::-webkit-scrollbar]:hidden md:flex md:gap-2"
+          className="hidden items-center gap-1 overflow-x-auto px-0.5 py-1 text-sm font-semibold [-ms-overflow-style:none] scrollbar-none [&::-webkit-scrollbar]:hidden md:flex md:gap-2"
         >
           {navItems.map((item) => {
             const isActive = currentPath === item.href;
