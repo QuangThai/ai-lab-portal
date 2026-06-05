@@ -25,6 +25,7 @@ export type BlogCommentPublic = {
   content: string;
   parent_id: string | null;
   created_at: string;
+  updated_at: string | null;
   reaction_count?: number;
   user_reacted?: boolean;
 };

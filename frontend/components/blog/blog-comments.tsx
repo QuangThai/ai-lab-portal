@@ -232,6 +232,11 @@ function CommentCard({
             <span className="text-xs text-muted-foreground" title={formatAbsoluteDate(node.created_at)}>
               {formatRelativeTime(node.created_at)}
             </span>
+            {node.updated_at && node.updated_at !== node.created_at && (
+              <span className="text-[11px] font-medium text-muted-foreground/60" title={formatAbsoluteDate(node.updated_at)}>
+                · edited
+              </span>
+            )}
 
             {/* Actions (always visible on mobile, hover on desktop) */}
             <div className={cn(
@@ -396,6 +401,7 @@ export function BlogComments({
           content,
           parent_id: null,
           created_at: new Date().toISOString(),
+          updated_at: null,
           reaction_count: 0,
           user_reacted: false,
         };

@@ -83,6 +83,7 @@ class BlogCommentPublic(BaseModel):
     content: str
     parent_id: str | None = None
     created_at: datetime
+    updated_at: datetime | None = None
     reaction_count: int = 0
     user_reacted: bool = False
 
@@ -728,6 +729,7 @@ def create_blog_social_routes(
                     content=c.content,
                     parent_id=c.parent_id,
                     created_at=c.created_at,
+                    updated_at=c.updated_at,
                     reaction_count=social_repo.get_comment_reaction_count(c.id),
                 )
             )
@@ -808,6 +810,7 @@ def create_blog_social_routes(
             content=updated.content,
             parent_id=updated.parent_id,
             created_at=updated.created_at,
+            updated_at=updated.updated_at,
             reaction_count=social_repo.get_comment_reaction_count(comment_id),
             user_reacted=social_repo.has_user_reacted_to_comment(comment_id, _identity.user_id),
         )
