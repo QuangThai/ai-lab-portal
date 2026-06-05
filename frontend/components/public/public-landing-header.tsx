@@ -69,10 +69,10 @@ export function PublicLandingHeader({ currentPath }: PublicLandingHeaderProps) {
                 key={item.href}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "shrink-0 rounded-full px-3 py-2 text-sm transition-[background-color,color] duration-200",
+                  "shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold tracking-tight transition-all duration-200",
                   isActive
-                    ? "bg-accent text-foreground ring-1 ring-brand/25"
-                    : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                    ? "bg-brand/10 text-brand shadow-sm ring-1 ring-brand/25"
+                    : "text-muted-foreground/70 hover:bg-muted/60 hover:text-foreground"
                 )}
                 href={item.href}
               >
@@ -94,10 +94,10 @@ export function PublicLandingHeader({ currentPath }: PublicLandingHeaderProps) {
                 key={item.href}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "shrink-0 rounded-full px-2.5 py-1.5 text-xs font-semibold transition-[background-color,color] duration-200",
+                  "shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-200",
                   isActive
-                    ? "bg-accent text-foreground ring-1 ring-brand/25"
-                    : "text-muted-foreground hover:bg-muted/80 hover:text-foreground"
+                    ? "bg-brand/10 text-brand ring-1 ring-brand/25"
+                    : "text-muted-foreground/70 hover:bg-muted/60 hover:text-foreground"
                 )}
                 href={item.href}
               >

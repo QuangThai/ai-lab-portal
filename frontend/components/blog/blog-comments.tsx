@@ -6,7 +6,6 @@ import { Heart, MessageCircle, ChevronUp, ChevronDown, Pencil, Trash2, Check, X 
 
 import { CommentTiptapEditor } from "@/components/blog/comment-tiptap-editor";
 import { Avatar } from "@/components/public/public-avatar";
-import { Button } from "@/components/ui/button";
 import type { BlogCommentPublic } from "@/lib/blog/social";
 import { cn } from "@/lib/utils";
 
@@ -212,18 +211,16 @@ function CommentCard({
         <div className="flex flex-col items-center shrink-0">
           {depth > 0 ? (
             <div className="flex flex-col items-center">
-              <span className="block h-3 w-px bg-border/60" aria-hidden />
+              <span className="block h-4 w-px bg-gradient-to-b from-border/40 to-transparent" aria-hidden />
               <Avatar src={node.avatar_url} name={node.user_name} size="md" className="ring-2 ring-background" />
             </div>
           ) : (
             <Avatar src={node.avatar_url} name={node.user_name} size="md" className="ring-2 ring-background" />
           )}
-          {/* Thread line connector */}
-          <div className="mt-2 flex-1 w-px min-h-[24px] bg-border/30 group-hover/comment:bg-border/60 transition-colors" aria-hidden />
         </div>
 
-        {/* Content column */}
-        <div className="min-w-0 flex-1 pb-5">
+        {/* Content column — border-l serves as the thread line for nested comments */}
+        <div className={cn("min-w-0 flex-1 pb-5", depth > 0 && "border-l border-border/20 pl-4")}>
           {/* Header */}
           <div className="flex items-center gap-2">
             <Link
