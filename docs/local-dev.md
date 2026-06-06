@@ -44,6 +44,40 @@ E2E_PORT=13100 npm run test:e2e
 If migrations fail with connection refused, confirm root `.env`
 `AI_LAB_DATABASE_URL` uses port **15432**, not `5432`.
 
+## E2E preflight (backlog #13)
+
+Playwright starts a local web server and expects Postgres on host port **15432**.
+If Docker Desktop is stopped, E2E fails before any test runs.
+
+```bash
+# From repo root — confirm infra is up before E2E
+docker compose ps postgres redis
+docker compose up -d postgres redis
+python -m alembic -c backend/alembic.ini upgrade head
+```
+
+Symptom: `webServer` timeout or Postgres connection refused in Playwright logs.
+Fix: start Docker Desktop, then `docker compose up -d postgres redis`.
+
+## E2E secret alignment (backlog #14)
+
+When the Docker **backend** service is already running on port `18000`, Playwright
+may hit it with a different `ADMIN_BOUNDARY_SECRET` than the E2E web server uses.
+That produces false admin-auth failures unrelated to the code under test.
+
+Recommended local workflow:
+
+```bash
+# Stop compose app services so Playwright owns backend + frontend secrets
+docker compose stop backend frontend worker
+
+# Run E2E with CI=1 so Playwright starts an isolated stack (from frontend/)
+cd frontend && CI=1 E2E_PORT=13100 npm run test:e2e
+```
+
+If you intentionally test against the Docker platform stack, align secrets in
+root `.env` and `frontend/.env` before running E2E.
+
 ## Verified (local)
 
 With Docker Postgres on host port `15432`:
@@ -74,10 +108,9 @@ scripts/bin/harness-cli query matrix
 git status --short   # requires a git worktree
 ```
 
-### Post-MVP4 audit (2026-06-03)
+### Harness hygiene (2026-06-06)
 
-- `python scripts/trace_quality.py`: **0 core gaps** (outcome/friction complete).
-- Advisory only: `missing_intake` on older traces; traces #85–92 are minimal tier
-  (closeout/docs slices) without Standard+ agent/actions/read/changed fields.
-- `scripts/bin/harness-cli story verify US-032` … `US-046` → all pass.
-- Harness backlog items #1–#9 → **implemented**; MVP 5 remains blocked (X/Twitter).
+- `python scripts/trace_quality.py`: run after trace backfill; expect **0 core gaps**.
+- `python scripts/proof_matrix_gaps.py`: **83 stories**, no actionable missing proof.
+- Harness backlog #1–#12 → **implemented**; #13–#15 track recurring E2E/env friction.
+- MVP 5 real Apify provider remains blocked on human budget/terms gate.
