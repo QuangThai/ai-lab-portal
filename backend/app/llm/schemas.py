@@ -12,10 +12,14 @@ from pydantic import BaseModel, Field
 class BlogIdea(BaseModel):
     """A blog idea generated from an internal project or external trend."""
 
-    title: str = Field(description="Suggested blog post title")
-    angle: str = Field(description="The specific angle or framing of the article")
+    title: str = Field(description="Suggested blog post title", max_length=240)
+    angle: str = Field(
+        description="The specific angle or framing of the article",
+        max_length=160,
+    )
     target_reader: str = Field(
-        description="Target audience (e.g. CTO, product manager, founder)"
+        description="Target audience (e.g. CTO, product manager, founder)",
+        max_length=160,
     )
     article_goal: str = Field(
         description="What this article should accomplish for the reader"

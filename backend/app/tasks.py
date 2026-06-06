@@ -41,6 +41,17 @@ def _finish_job(task, jobs, exc: Exception | None = None) -> None:
         jobs.mark_failed(task.request.id, str(exc))
 
 
+def _idea_create_from_llm(result: BlogIdeaSchema) -> BlogIdeaCreate:
+    """Map LLM output to persisted idea fields (DB column limits)."""
+    return BlogIdeaCreate(
+        title=result.title[:240],
+        angle=result.angle[:160],
+        target_reader=result.target_reader[:160],
+        article_goal=result.article_goal,
+        positioning_notes=result.positioning_notes,
+    )
+
+
 @celery_app.task(name="foundation.smoke")
 def foundation_smoke() -> dict[str, str]:
     return {"status": "ok", "task": "foundation.smoke"}
@@ -71,13 +82,7 @@ def generate_blog_idea_task(
         )
         repo = idea_repository()
         idea = repo.add_generated(
-            BlogIdeaCreate(
-                title=result.title,
-                angle=result.angle,
-                target_reader=result.target_reader,
-                article_goal=result.article_goal,
-                positioning_notes=result.positioning_notes,
-            ),
+            _idea_create_from_llm(result),
             context={
                 "project_name": project_name,
                 "project_summary": project_summary,

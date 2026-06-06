@@ -152,7 +152,8 @@ MARKETING_META_PROMPT = PromptTemplate(
     user_template=(
         "Generate marketing metadata for the following blog post:\n\n"
         "Title: {title}\n"
-        "Excerpt: {excerpt}\n\n"
+        "Angle: {angle}\n"
+        "Target reader: {target_reader}\n\n"
         "Full draft:\n{draft_markdown}"
     ),
 )
