@@ -10,7 +10,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
-from typing import Protocol
+from typing import Any, Protocol
 from urllib.error import URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
@@ -25,9 +25,9 @@ from backend.app.database import news_raw_items as raw_items_table
 
 
 class NewsSourceRepoProtocol(Protocol):
-    def get_by_id(self, source_id: str): ...
+    def get_by_id(self, source_id: str) -> Any: ...
 
-    def list_due_rss(self, *, now: datetime | None = None): ...
+    def list_due_rss(self, *, now: datetime | None = None) -> list[Any]: ...
 
     def touch_last_crawled(self, source_id: str, crawled_at: datetime) -> None: ...
 
@@ -236,7 +236,9 @@ def _parse_atom_entry(entry: ElementTree.Element) -> ParsedFeedItem | None:
 
 
 def content_hash_for_item(item: ParsedFeedItem) -> str:
-    payload = f"{item.title}\n{item.link_url}\n{json.dumps(item.raw_payload, sort_keys=True)}"
+    payload = (
+        f"{item.title}\n{item.link_url}\n{json.dumps(item.raw_payload, sort_keys=True)}"
+    )
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
@@ -272,15 +274,17 @@ class NewsRawItemRepository:
         return None
 
     def list_for_source(self, source_id: str) -> list[NewsRawItemSummary]:
-        return [
-            row
-            for (sid, _), row in self._items.items()
-            if sid == source_id
-        ]
+        return [row for (sid, _), row in self._items.items() if sid == source_id]
 
-    def list_without_extraction(self, extracted_repo, *, source_id: str | None = None) -> list[NewsRawItemSummary]:
-        rows = self.list_for_source(source_id) if source_id else list(self._items.values())
-        return [row for row in rows if extracted_repo.get_by_raw_item_id(row.id) is None]
+    def list_without_extraction(
+        self, extracted_repo, *, source_id: str | None = None
+    ) -> list[NewsRawItemSummary]:
+        rows = (
+            self.list_for_source(source_id) if source_id else list(self._items.values())
+        )
+        return [
+            row for row in rows if extracted_repo.get_by_raw_item_id(row.id) is None
+        ]
 
 
 class PostgresNewsRawItemRepository(NewsRawItemRepository):
@@ -351,14 +355,18 @@ class PostgresNewsRawItemRepository(NewsRawItemRepository):
             ).mappings()
             return [NewsRawItemSummary(**dict(row)) for row in rows]
 
-    def list_without_extraction(self, extracted_repo, *, source_id: str | None = None) -> list[NewsRawItemSummary]:
+    def list_without_extraction(
+        self, extracted_repo, *, source_id: str | None = None
+    ) -> list[NewsRawItemSummary]:
         from backend.app.database import news_extracted_articles as extracted_table
 
         with self._engine.connect() as conn:
             query = select(raw_items_table)
             if source_id is not None:
                 query = query.where(raw_items_table.c.source_id == source_id)
-            rows = conn.execute(query.order_by(raw_items_table.c.fetched_at.desc())).mappings()
+            rows = conn.execute(
+                query.order_by(raw_items_table.c.fetched_at.desc())
+            ).mappings()
             pending: list[NewsRawItemSummary] = []
             for row in rows:
                 item = NewsRawItemSummary(**dict(row))
