@@ -76,7 +76,6 @@ test.describe("US-086: AI Blog Agent golden path", () => {
       });
 
       await clickPipelineActionAndWait(page, /Accept & generate marketing/i);
-      await expect(page.getByText("Review accepted").first()).toBeVisible({ timeout: 30_000 });
       await expect(page.getByText("SEO Title").first()).toBeVisible({ timeout: 30_000 });
 
       await clickPipelineActionAndWait(page, /Approve & extract claims/i);
@@ -84,7 +83,9 @@ test.describe("US-086: AI Blog Agent golden path", () => {
         timeout: 30_000,
       });
 
-      await expect(page.getByText("Marketing approved").first()).toBeVisible({ timeout: 15_000 });
+      await expect(page.getByRole("button", { name: /Publish to blog/i })).toBeVisible({
+        timeout: 15_000,
+      });
 
       const waiveButton = page.getByRole("button", { name: "Waive for publish" });
       if (await waiveButton.isVisible().catch(() => false)) {
@@ -95,7 +96,7 @@ test.describe("US-086: AI Blog Agent golden path", () => {
       await page.getByRole("button", { name: /Publish to blog/i }).click();
       await page.waitForLoadState("load");
 
-      await expect(page.getByText(/Linked to a blog post|View public post/i).first()).toBeVisible({
+      await expect(page.getByRole("link", { name: /View public post/i })).toBeVisible({
         timeout: 30_000,
       });
 

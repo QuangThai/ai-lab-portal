@@ -2,7 +2,6 @@
 
 import React from "react";
 import Link from "next/link";
-import { motion, AnimatePresence } from "framer-motion";
 import { useFormStatus } from "react-dom";
 
 import {
@@ -16,13 +15,8 @@ import {
   Search,
   Tag,
   MessageSquare,
-  BookOpen,
-  Shield,
-  Megaphone,
-  Lightbulb,
   Send,
   ExternalLink,
-  Scale,
   Loader2,
 } from "lucide-react";
 
@@ -30,7 +24,6 @@ import { AdminBackLink } from "@/components/admin/admin-back-link";
 import {
   adminPageStackClass,
   adminPageTitleClass,
-  adminPanelClass,
 } from "@/components/admin/admin-ui";
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
@@ -39,7 +32,8 @@ import { ClaimReviewPanel } from "./claim-review-panel";
 import { claimsBlockPublish } from "./lib/claim-publish-gate";
 import { approveButtonLabel } from "./lib/pipeline-next-stage";
 import { getPipelineNextAction } from "./lib/pipeline-next-action";
-import { PipelineNextActionBanner } from "./pipeline-next-action-banner";
+import { PipelineStepNav } from "./pipeline-step-nav";
+import { PipelineStepShell, stepShellState } from "./pipeline-step-shell";
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -147,53 +141,6 @@ const severityConfig = {
   },
 };
 
-// ─── Pipeline Stage Config ──────────────────────────────────────
-
-type StageId = "idea" | "outline" | "draft" | "review" | "marketing";
-
-const stages: {
-  id: StageId;
-  label: string;
-  icon: typeof Lightbulb;
-  description: string;
-}[] = [
-  { id: "idea", label: "Idea", icon: Lightbulb, description: "Concept & angle" },
-  { id: "outline", label: "Outline", icon: BookOpen, description: "Structure & sections" },
-  { id: "draft", label: "Draft", icon: FileText, description: "Full article" },
-  { id: "review", label: "Review", icon: Shield, description: "Technical check" },
-  { id: "marketing", label: "Marketing", icon: Megaphone, description: "SEO & social" },
-];
-
-function getStageStatus(idea: BlogIdeaDetail, stageId: StageId): "done" | "current" | "pending" | "skipped" {
-  switch (stageId) {
-    case "idea":
-      return idea.status === "approved"
-        ? "done"
-        : idea.status === "rejected"
-          ? "skipped"
-          : "current";
-    case "outline":
-      if (idea.outline_status === "approved") return "done";
-      if (idea.outline_status === "pending" || idea.outline_status === "rejected") return "current";
-      return idea.status === "approved" ? "current" : "pending";
-    case "draft":
-      if (idea.draft_status === "approved") return "done";
-      if (idea.draft_status === "pending" || idea.draft_status === "rejected") return "current";
-      if (idea.outline_status === "approved") return "current";
-      return "pending";
-    case "review":
-      if (idea.technical_review_status === "approved") return "done";
-      if (idea.technical_review_status === "pending" || idea.technical_review_status === "rejected") return "current";
-      if (idea.draft_status === "approved") return "current";
-      return "pending";
-    case "marketing":
-      if (idea.marketing_status === "approved") return "done";
-      if (idea.marketing_status === "pending" || idea.marketing_status === "rejected") return "current";
-      if (idea.technical_review_status === "approved") return "current";
-      return "pending";
-  }
-}
-
 // ─── Actions Props ───────────────────────────────────────────────
 
 type Actions = {
@@ -235,238 +182,131 @@ type Props = {
   actions: Actions;
 };
 
-const container = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.08 } },
-};
-
-const sectionAnim = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: "easeOut" as const } },
-};
-
 export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actions }: Props) {
   const nextAction = getPipelineNextAction(idea, claims.length, operationalStatus);
+  const showOpBanner =
+    Boolean(operationalStatus?.message) && operationalStatus?.opStatus !== "queued";
+
+  const ideaStepState = stepShellState("idea", nextAction.stageId, idea);
+  const outlineStepState = stepShellState("outline", nextAction.stageId, idea);
+  const draftStepState = stepShellState("draft", nextAction.stageId, idea);
+  const reviewStepState = stepShellState("review", nextAction.stageId, idea);
+  const marketingStepState = stepShellState("marketing", nextAction.stageId, idea);
+  const claimsStepState = stepShellState("claims", nextAction.stageId, idea);
+  const publishStepState = stepShellState("publish", nextAction.stageId, idea);
 
   return (
-    <motion.div
-      variants={container}
-      initial="hidden"
-      animate="show"
-      className={adminPageStackClass}
-    >
-      <motion.div variants={sectionAnim}>
-        <AdminBackLink href="/admin/blog-ideas">Back to ideas</AdminBackLink>
-      </motion.div>
+    <div className={adminPageStackClass}>
+      <AdminBackLink href="/admin/blog-ideas">Back to ideas</AdminBackLink>
 
-      {/* ── Pipeline progress ── */}
-      <motion.div
-        variants={sectionAnim}
-        className={adminPanelClass}
-      >
-        <div className="flex items-center justify-between gap-2">
-          {stages.map((stage, i) => {
-            const stageStatus = getStageStatus(idea, stage.id);
-            const isFocusStage = nextAction.stageId === stage.id;
-            const Icon = stage.icon;
-            return (
-              <div key={stage.id} className="flex flex-1 items-center gap-2">
-                <div className="flex flex-col items-center gap-1.5 sm:flex-row">
-                  <span
-                    className={cn(
-                      "flex size-8 shrink-0 items-center justify-center rounded-md text-xs font-bold transition-colors duration-200",
-                      stageStatus === "done"
-                        ? "bg-brand text-white"
-                        : stageStatus === "current"
-                          ? isFocusStage
-                            ? "border-2 border-brand bg-brand/10 text-brand ring-2 ring-brand/20"
-                            : "border-2 border-brand bg-card text-brand"
-                          : stageStatus === "skipped"
-                            ? "bg-red-100 text-red-500 dark:bg-red-950/30 dark:text-red-400"
-                            : "bg-muted text-muted-foreground"
-                    )}
-                  >
-                    {stageStatus === "done" ? (
-                      <CheckCircle className="size-4" />
-                    ) : (
-                      <Icon className="size-4" />
-                    )}
-                  </span>
-                  <div className="hidden sm:block">
-                    <p
-                      className={cn(
-                        "text-xs font-semibold leading-tight",
-                        stageStatus === "done"
-                          ? "text-brand"
-                          : stageStatus === "current"
-                            ? "text-foreground"
-                            : "text-muted-foreground"
-                      )}
-                    >
-                      {stage.label}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {stage.description}
-                    </p>
-                  </div>
-                </div>
-                {i < stages.length - 1 && (
-                  <div
-                    className={cn(
-                      "hidden h-px flex-1 sm:block",
-                      stageStatus === "done"
-                        ? "bg-brand"
-                        : "bg-border"
-                    )}
-                  />
-                )}
-              </div>
-            );
-          })}
-        </div>
-        <div className="mt-4 border-t border-border pt-4">
-          <PipelineNextActionBanner action={nextAction} />
-        </div>
-      </motion.div>
-
-      <AnimatePresence>
-        {operationalStatus?.opStatus && operationalStatus.message && (
-          <motion.div
-            key="op-banner"
-            variants={sectionAnim}
-            initial="hidden"
-            animate="visible"
-            exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-            transition={{ duration: 0.2 }}
+      <header className="flex flex-col gap-2 border-b border-border/60 pb-5">
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium",
+              statusColors[idea.status],
+            )}
           >
-            <OperationalStatusBanner status={operationalStatus} />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Header ── */}
-      <motion.div variants={sectionAnim} id="pipeline-section-idea" className="scroll-mt-24">
-        <div className="flex flex-col gap-2">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={cn(
-                "inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-medium",
-                statusColors[idea.status]
-              )}
-            >
-              {idea.status === "approved" ? (
-                <CheckCircle className="size-3" />
-              ) : idea.status === "rejected" ? (
-                <XCircle className="size-3" />
-              ) : (
-                <Clock className="size-3" />
-              )}
-              {idea.status}
-            </span>
-            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
-              {idea.source === "ai_generated" ? (
-                <Sparkles className="size-3" />
-              ) : (
-                <FileText className="size-3" />
-              )}
-              {idea.source === "ai_generated" ? "AI-generated" : "Manual"}
-            </span>
-            <span className="text-[11px] text-muted-foreground">
-              Created {formatDate(idea.created_at)}
-            </span>
-          </div>
-          <h1 className={adminPageTitleClass}>
-            {idea.title}
-          </h1>
-          {idea.status === "pending" && (
-            <ActionButtons
-              approveAction={actions.approveIdea}
-              rejectAction={actions.rejectIdea}
-              ideaId={idea.id}
-              approveLabel={approveButtonLabel("idea")}
-              rejectLabel="Reject idea"
-            />
-          )}
+            {idea.status === "approved" ? (
+              <CheckCircle className="size-3" />
+            ) : idea.status === "rejected" ? (
+              <XCircle className="size-3" />
+            ) : (
+              <Clock className="size-3" />
+            )}
+            {idea.status}
+          </span>
+          <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            {idea.source === "ai_generated" ? (
+              <Sparkles className="size-3" />
+            ) : (
+              <FileText className="size-3" />
+            )}
+            {idea.source === "ai_generated" ? "AI-generated" : "Manual"}
+          </span>
+          <span className="text-[11px] text-muted-foreground">
+            Updated {formatDate(idea.updated_at)}
+          </span>
         </div>
-      </motion.div>
+        <h1 className={adminPageTitleClass}>{idea.title}</h1>
+        {nextAction.kind !== "done" && nextAction.kind !== "processing" ? (
+          <p className="max-w-2xl text-sm text-muted-foreground">{nextAction.description}</p>
+        ) : null}
+      </header>
 
-      {/* ── Metadata ── */}
-      <motion.div
-        variants={sectionAnim}
-        className={adminPanelClass}
-      >
-        <div className="grid gap-5 sm:grid-cols-3">
-          <div>
-            <p className="text-xs font-medium text-muted-foreground">
-              Angle
-            </p>
-            <p className="mt-1.5 text-sm leading-snug text-foreground">
-              {idea.angle}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-medium text-muted-foreground">
-              Target reader
-            </p>
-            <p className="mt-1.5 text-sm leading-snug text-foreground">
-              {idea.target_reader}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-medium text-muted-foreground">
-              Article goal
-            </p>
-            <p className="mt-1.5 text-sm leading-snug text-foreground">
-              {idea.article_goal}
-            </p>
-          </div>
-        </div>
+      {showOpBanner ? <OperationalStatusBanner status={operationalStatus!} /> : null}
 
-        {idea.positioning_notes.length > 0 && (
-          <>
-            <hr className="my-4 border-border " />
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">
-                Positioning notes
-              </p>
-              <ul className="mt-2 space-y-1">
-                {idea.positioning_notes.map((note, i) => (
-                  <li
-                    key={`note-${note.slice(0, 24)}-${i}`}
-                    className="flex items-start gap-2 text-sm leading-snug text-foreground"
-                  >
-                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-brand" />
-                    {note}
-                  </li>
-                ))}
-              </ul>
+      <div className="grid items-start gap-6 lg:grid-cols-[13.5rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)]">
+        <PipelineStepNav idea={idea} nextAction={nextAction} />
+
+        <div className="grid gap-4">
+          <PipelineStepShell
+            stepNumber={1}
+            title="Idea"
+            sectionId="pipeline-section-idea"
+            state={ideaStepState}
+            summary={idea.angle}
+            lockedMessage="Idea was rejected."
+            headerActions={
+              idea.status === "pending" ? (
+                <ActionButtons
+                  approveAction={actions.approveIdea}
+                  rejectAction={actions.rejectIdea}
+                  ideaId={idea.id}
+                  approveLabel={approveButtonLabel("idea")}
+                  rejectLabel="Reject"
+                />
+              ) : undefined
+            }
+          >
+            <div className="grid gap-5 sm:grid-cols-3">
+              <MetaField label="Angle" value={idea.angle} />
+              <MetaField label="Target reader" value={idea.target_reader} />
+              <MetaField label="Article goal" value={idea.article_goal} />
             </div>
-          </>
-        )}
+            {idea.positioning_notes.length > 0 ? (
+              <div className="mt-5 border-t border-border/60 pt-4">
+                <p className="text-xs font-medium text-muted-foreground">Positioning notes</p>
+                <ul className="mt-2 space-y-1.5">
+                  {idea.positioning_notes.map((note, i) => (
+                    <li
+                      key={`note-${note.slice(0, 24)}-${i}`}
+                      className="text-sm leading-snug text-foreground"
+                    >
+                      {note}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+            {idea.feedback ? (
+              <p className="mt-4 text-sm italic text-muted-foreground">{idea.feedback}</p>
+            ) : null}
+          </PipelineStepShell>
 
-        {idea.feedback && (
-          <>
-            <hr className="my-4 border-border " />
-            <div>
-              <p className="text-xs font-medium text-muted-foreground">
-                Feedback
-              </p>
-              <p className="mt-1.5 text-sm italic leading-snug text-muted-foreground">
-                {idea.feedback}
-              </p>
-            </div>
-          </>
-        )}
-      </motion.div>
-
-      {/* ── Outline Section ── */}
-      <SectionCard
-        icon={BookOpen}
-        label="Outline"
-        sectionId="pipeline-section-outline"
-        status={idea.outline_status}
-        statusColors={statusColors}
-      >
+          <PipelineStepShell
+            stepNumber={2}
+            title="Outline"
+            sectionId="pipeline-section-outline"
+            state={outlineStepState}
+            summary={
+              idea.outline_sections.length > 0
+                ? `${idea.outline_sections.length} sections · ${idea.outline_status ?? "draft"}`
+                : undefined
+            }
+            lockedMessage="Approve the idea to generate an outline."
+            headerActions={
+              idea.outline_status === "pending" ? (
+                <ActionButtons
+                  approveAction={actions.approveOutline}
+                  rejectAction={actions.rejectOutline}
+                  ideaId={idea.id}
+                  approveLabel={approveButtonLabel("outline")}
+                  rejectLabel="Reject"
+                />
+              ) : undefined
+            }
+          >
         {idea.outline_sections.length === 0 ? (
           <EmptyState
             message={
@@ -486,29 +326,17 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
             }
           />
         ) : (
-          <div className="grid gap-4 lg:grid-cols-2">
-            {idea.outline_status === "pending" && (
-              <ActionButtons
-                approveAction={actions.approveOutline}
-                rejectAction={actions.rejectOutline}
-                ideaId={idea.id}
-                approveLabel={approveButtonLabel("outline")}
-                rejectLabel="Reject outline"
-              />
-            )}
-            {idea.outline_status === "approved" && (
-              <StatusDone label="Outline approved" />
-            )}
-            {idea.outline_status === "rejected" && idea.status === "approved" && (
+          <div className="grid gap-4">
+            {idea.outline_status === "rejected" && idea.status === "approved" ? (
               <RegenerateAction
                 actionName={actions.generateOutline}
                 ideaId={idea.id}
                 label="Regenerate outline"
               />
-            )}
-            <div className="grid gap-5">
+            ) : null}
+            <div className="grid gap-4 sm:grid-cols-2">
               {idea.outline_sections.map((section, i) => (
-                <div key={section.section} className="rounded-xl border border-border bg-muted/50 p-4">
+                <div key={section.section} className="rounded-lg border border-border/70 bg-muted/30 p-4">
                   <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
                     <span className="flex size-5 items-center justify-center rounded-md bg-brand/10 text-[10px] font-bold text-brand">
                       {i + 1}
@@ -519,9 +347,8 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
                     {section.points.map((point, j) => (
                       <li
                         key={`${section.section}-point-${j}`}
-                        className="flex items-start gap-2 text-sm leading-snug text-muted-foreground"
+                        className="text-sm leading-snug text-muted-foreground"
                       >
-                        <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-muted-foreground/40" />
                         {point}
                       </li>
                     ))}
@@ -531,16 +358,31 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
             </div>
           </div>
         )}
-      </SectionCard>
+          </PipelineStepShell>
 
-      {/* ── Draft Section ── */}
-      <SectionCard
-        icon={FileText}
-        label="Draft"
-        sectionId="pipeline-section-draft"
-        status={idea.draft_status}
-        statusColors={statusColors}
-      >
+          <PipelineStepShell
+            stepNumber={3}
+            title="Draft"
+            sectionId="pipeline-section-draft"
+            state={draftStepState}
+            summary={
+              idea.draft_markdown
+                ? `${idea.draft_markdown.split(/\s+/).filter(Boolean).length.toLocaleString()} words · ${idea.draft_status ?? "draft"}`
+                : undefined
+            }
+            lockedMessage="Approve the outline to generate a draft."
+            headerActions={
+              idea.draft_status === "pending" ? (
+                <ActionButtons
+                  approveAction={actions.approveDraft}
+                  rejectAction={actions.rejectDraft}
+                  ideaId={idea.id}
+                  approveLabel={approveButtonLabel("draft")}
+                  rejectLabel="Reject"
+                />
+              ) : undefined
+            }
+          >
         {!idea.draft_markdown ? (
           <EmptyState
             message={
@@ -561,26 +403,14 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
           />
         ) : (
           <div className="grid gap-4">
-            {idea.draft_status === "pending" && (
-              <ActionButtons
-                approveAction={actions.approveDraft}
-                rejectAction={actions.rejectDraft}
-                ideaId={idea.id}
-                approveLabel={approveButtonLabel("draft")}
-                rejectLabel="Reject draft"
-              />
-            )}
-            {idea.draft_status === "approved" && (
-              <StatusDone label="Draft approved" />
-            )}
-            {idea.draft_status === "rejected" && idea.outline_status === "approved" && (
+            {idea.draft_status === "rejected" && idea.outline_status === "approved" ? (
               <RegenerateAction
                 actionName={actions.generateDraft}
                 ideaId={idea.id}
                 label="Regenerate draft"
               />
-            )}
-            <div className="prose prose-sm prose-green max-w-none rounded-xl border border-border bg-muted/30 p-5">
+            ) : null}
+            <div className="max-h-[32rem] overflow-y-auto rounded-lg border border-border/70 bg-muted/20 p-5">
               {idea.draft_markdown.split("\n").map((line, i) => {
                 if (line.startsWith("## ")) {
                   return (
@@ -637,16 +467,31 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
             </div>
           </div>
         )}
-      </SectionCard>
+          </PipelineStepShell>
 
-      {/* ── Technical Review Section ── */}
-      <SectionCard
-        icon={Shield}
-        label="Technical Review"
-        sectionId="pipeline-section-review"
-        status={idea.technical_review_status}
-        statusColors={statusColors}
-      >
+          <PipelineStepShell
+            stepNumber={4}
+            title="Technical review"
+            sectionId="pipeline-section-review"
+            state={reviewStepState}
+            summary={
+              idea.technical_review
+                ? `${idea.technical_review.overall_risk} risk · ${idea.technical_review.issues.length} issues`
+                : undefined
+            }
+            lockedMessage="Approve the draft to run technical review."
+            headerActions={
+              idea.technical_review_status === "pending" ? (
+                <ActionButtons
+                  approveAction={actions.approveReview}
+                  rejectAction={actions.rejectReview}
+                  ideaId={idea.id}
+                  approveLabel={approveButtonLabel("review")}
+                  rejectLabel="Changes"
+                />
+              ) : undefined
+            }
+          >
         {!idea.technical_review ? (
           <EmptyState
             message={
@@ -688,25 +533,13 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
               )}
             </div>
 
-            {idea.technical_review_status === "pending" && (
-              <ActionButtons
-                approveAction={actions.approveReview}
-                rejectAction={actions.rejectReview}
-                ideaId={idea.id}
-                approveLabel={approveButtonLabel("review")}
-                rejectLabel="Request changes"
-              />
-            )}
-            {idea.technical_review_status === "approved" && (
-              <StatusDone label="Review accepted" />
-            )}
-            {idea.technical_review_status === "rejected" && idea.draft_status === "approved" && (
+            {idea.technical_review_status === "rejected" && idea.draft_status === "approved" ? (
               <RegenerateAction
                 actionName={actions.reviewTechnical}
                 ideaId={idea.id}
                 label="Run review again"
               />
-            )}
+            ) : null}
 
             {idea.technical_review.issues.length === 0 ? (
               <p className="flex items-center gap-2 text-sm text-emerald-600 dark:text-emerald-400">
@@ -782,16 +615,27 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
             )}
           </div>
         )}
-      </SectionCard>
+          </PipelineStepShell>
 
-      {/* ── Marketing Section ── */}
-      <SectionCard
-        icon={Megaphone}
-        label="Marketing"
-        sectionId="pipeline-section-marketing"
-        status={idea.marketing_status}
-        statusColors={statusColors}
-      >
+          <PipelineStepShell
+            stepNumber={5}
+            title="Marketing"
+            sectionId="pipeline-section-marketing"
+            state={marketingStepState}
+            summary={idea.marketing_metadata?.seo_title}
+            lockedMessage="Accept the technical review to generate marketing metadata."
+            headerActions={
+              idea.marketing_status === "pending" ? (
+                <ActionButtons
+                  approveAction={actions.approveMarketing}
+                  rejectAction={actions.rejectMarketing}
+                  ideaId={idea.id}
+                  approveLabel={approveButtonLabel("marketing")}
+                  rejectLabel="Regenerate"
+                />
+              ) : undefined
+            }
+          >
         {!idea.marketing_metadata ? (
           <EmptyState
             message={
@@ -811,32 +655,15 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
             }
           />
         ) : (
-          <div className="grid gap-4">
-            {idea.marketing_status === "pending" && (
-              <ActionButtons
-                approveAction={actions.approveMarketing}
-                rejectAction={actions.rejectMarketing}
-                ideaId={idea.id}
-                approveLabel={approveButtonLabel("marketing")}
-                rejectLabel="Regenerate"
-              />
-            )}
-            {idea.marketing_status === "approved" && (
-              <StatusDone label="Marketing approved" />
-            )}
-            {idea.marketing_status === "rejected" && idea.technical_review_status === "approved" && (
+          <div className="grid gap-5">
+            {idea.marketing_status === "rejected" && idea.technical_review_status === "approved" ? (
               <RegenerateAction
                 actionName={actions.generateMarketing}
                 ideaId={idea.id}
                 label="Regenerate marketing"
               />
-            )}
-
-            <div className="grid gap-5">
-              <MarketingField
-                label="SEO Title"
-                value={idea.marketing_metadata.seo_title}
-              />
+            ) : null}
+            <MarketingField label="SEO Title" value={idea.marketing_metadata.seo_title} />
               <MarketingField
                 label="Meta Description"
                 value={idea.marketing_metadata.meta_description}
@@ -872,13 +699,22 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
                     </div>
                   </div>
                 )}
-            </div>
           </div>
         )}
-      </SectionCard>
+          </PipelineStepShell>
 
-      {/* ── Claim evidence ledger ── */}
-      <SectionCard icon={Scale} label="Claims" sectionId="pipeline-section-claims" status={null} statusColors={statusColors}>
+          <PipelineStepShell
+            stepNumber={6}
+            title="Claims"
+            sectionId="pipeline-section-claims"
+            state={claimsStepState}
+            summary={
+              claims.length > 0
+                ? `${claims.length} claims · ${claims.filter((c) => c.status !== "pending" && c.status !== "unsupported").length} cleared`
+                : undefined
+            }
+            lockedMessage="Approve marketing metadata before extracting claims."
+          >
         {idea.marketing_status !== "approved" ? (
           <EmptyState message="Approve marketing metadata before extracting claims for the evidence ledger." />
         ) : (
@@ -892,39 +728,36 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
             ideaId={idea.id}
           />
         )}
-      </SectionCard>
+          </PipelineStepShell>
 
-      {/* ── Publish bridge ── */}
-      <SectionCard
-        icon={Send}
-        label="Publish"
-        sectionId="pipeline-section-publish"
-        status={idea.published_blog_post_id ? "approved" : idea.marketing_status}
-        statusColors={statusColors}
-      >
+          <PipelineStepShell
+            stepNumber={7}
+            title="Publish"
+            sectionId="pipeline-section-publish"
+            state={publishStepState}
+            summary={idea.published_blog_post_id ? "Published to blog" : undefined}
+            lockedMessage="Clear claims and approve marketing before publishing."
+          >
         {idea.published_blog_post_id ? (
-          <div className="grid gap-3">
-            <StatusDone label="Linked to a blog post" />
-            <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={`/admin/blog/${idea.published_blog_post_id}/edit`}
+              className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "gap-1.5")}
+            >
+              <FileText className="size-3.5" aria-hidden />
+              Edit in CMS
+            </Link>
+            {operationalStatus?.blogSlug ? (
               <Link
-                href={`/admin/blog/${idea.published_blog_post_id}/edit`}
-                className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "gap-1.5")}
+                href={`/blog/${operationalStatus.blogSlug}`}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
+                target="_blank"
+                rel="noreferrer"
               >
-                <FileText className="size-3.5" aria-hidden />
-                Edit in CMS
+                <ExternalLink className="size-3.5" aria-hidden />
+                View public post
               </Link>
-              {operationalStatus?.blogSlug && (
-                <Link
-                  href={`/blog/${operationalStatus.blogSlug}`}
-                  className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <ExternalLink className="size-3.5" aria-hidden />
-                  View public post
-                </Link>
-              )}
-            </div>
+            ) : null}
           </div>
         ) : idea.marketing_status === "approved" ? (
           <div className="grid gap-3">
@@ -954,69 +787,21 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
         ) : (
           <EmptyState message="Approve marketing metadata to enable publishing to the blog." />
         )}
-      </SectionCard>
-    </motion.div>
+          </PipelineStepShell>
+        </div>
+      </div>
+    </div>
   );
 }
 
 // ─── Sub-Components ──────────────────────────────────────────────
 
-const badgeAnim = {
-  hidden: { opacity: 0, scale: 0.8 },
-  show: {
-    opacity: 1,
-    scale: 1,
-    transition: { duration: 0.3, ease: "easeOut" as const },
-  },
-};
-
-function SectionCard({
-  icon: Icon,
-  label,
-  sectionId,
-  status,
-  statusColors,
-  children,
-}: {
-  icon: typeof Lightbulb;
-  label: string;
-  sectionId?: string;
-  status: string | null;
-  statusColors: Record<string, string>;
-  children: React.ReactNode;
-}) {
+function MetaField({ label, value }: { label: string; value: string }) {
   return (
-    <motion.div
-      id={sectionId}
-      variants={sectionAnim}
-      className={cn(adminPanelClass, "p-0 scroll-mt-24")}
-    >
-      <div className="flex items-center justify-between border-b border-border px-4 py-3.5 sm:px-5 sm:py-4">
-        <div className="flex items-center gap-2.5">
-          <div className="flex size-8 items-center justify-center rounded-xl bg-muted">
-            <Icon className="size-4 text-muted-foreground" aria-hidden />
-          </div>
-          <h2 className="text-sm font-semibold text-foreground">
-            {label}
-          </h2>
-        </div>
-        {status && (
-          <motion.span
-            variants={badgeAnim}
-            className={cn(
-              "inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-widest",
-              statusColors[status] ?? statusColors.pending
-            )}
-          >
-            {status === "approved" && <CheckCircle className="size-3" />}
-            {status === "rejected" && <XCircle className="size-3" />}
-            {status === "pending" && <Clock className="size-3" />}
-            {status}
-          </motion.span>
-        )}
-      </div>
-      <div className="p-4 sm:p-5">{children}</div>
-    </motion.div>
+    <div>
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1.5 text-sm leading-snug text-foreground">{value}</p>
+    </div>
   );
 }
 
@@ -1033,10 +818,7 @@ function EmptyState({
   };
 }) {
   return (
-    <div className="flex flex-col items-center justify-center py-10 text-center">
-      <div className="mb-4 flex size-12 items-center justify-center rounded-2xl bg-muted/50 ring-1 ring-border/30">
-        <Sparkles className="size-5 text-muted-foreground/60" aria-hidden />
-      </div>
+    <div className="flex flex-col items-center justify-center py-8 text-center">
       <p className="max-w-md text-sm leading-relaxed text-muted-foreground">{message}</p>
       {action && (
         <form action={action.actionName} className="mt-4">
@@ -1135,50 +917,31 @@ function ActionButtons({
   );
 }
 
-function StatusDone({ label }: { label: string }) {
-  return (
-    <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
-      <CheckCircle className="size-3.5" aria-hidden />
-      {label}
-    </p>
-  );
-}
-
 function OperationalStatusBanner({ status }: { status: OperationalStatus }) {
   const isError = status.opStatus === "error";
   const isQueued = status.opStatus === "queued";
   const isPublish = status.opStage === "publish";
 
   return (
-    <motion.div
+    <div
       role={isError ? "alert" : "status"}
-      initial={{ opacity: 0, height: 0, marginBottom: 0 }}
-      animate={{ opacity: 1, height: "auto", marginBottom: "1.5rem" }}
-      exit={{ opacity: 0, height: 0, marginBottom: 0 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
       className={cn(
-        "overflow-hidden rounded-xl border",
+        "rounded-lg border px-4 py-3",
         isError
           ? "border-red-200 bg-red-50/80 text-red-900 dark:border-red-900 dark:bg-red-950/20 dark:text-red-200"
           : isQueued
             ? "border-amber-200 bg-amber-50/80 text-amber-900 dark:border-amber-900 dark:bg-amber-950/20 dark:text-amber-200"
-            : "border-emerald-200 bg-emerald-50/80 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-200"
+            : "border-emerald-200 bg-emerald-50/80 text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/20 dark:text-emerald-200",
       )}
     >
-      <div className="flex items-start gap-3 p-4">
-        <motion.div
-          initial={{ rotate: -90, opacity: 0 }}
-          animate={{ rotate: 0, opacity: 1 }}
-          transition={{ delay: 0.1, duration: 0.3 }}
-        >
-          {isError ? (
-            <AlertCircle className="mt-0.5 size-5" aria-hidden />
-          ) : (
-            <Sparkles className="mt-0.5 size-5" aria-hidden />
-          )}
-        </motion.div>
+      <div className="flex items-start gap-3">
+        {isError ? (
+          <AlertCircle className="mt-0.5 size-4 shrink-0" aria-hidden />
+        ) : (
+          <Sparkles className="mt-0.5 size-4 shrink-0" aria-hidden />
+        )}
         <div className="grid min-w-0 flex-1 gap-1">
-          <p className="text-sm font-semibold">
+          <p className="text-sm font-medium">
             {isError
               ? isPublish
                 ? "Publish needs attention"
@@ -1189,30 +952,18 @@ function OperationalStatusBanner({ status }: { status: OperationalStatus }) {
                   ? "Published to blog"
                   : "Generation completed"}
           </p>
-          {status.message && (
+          {status.message ? (
             <p className="text-sm leading-snug opacity-80">{status.message}</p>
-          )}
-          {(status.opStage || status.taskId) && (
-            <p className="text-xs opacity-60">
-              {status.opStage ? `Stage: ${status.opStage}` : null}
-              {status.opStage && status.taskId ? " · " : null}
-              {status.taskId ? `Task: ${status.taskId}` : null}
-            </p>
-          )}
-          {status.blogPostId && (
-            <motion.div
-              initial={{ opacity: 0, y: 4 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2, duration: 0.3 }}
-              className="mt-2 flex flex-wrap gap-2"
-            >
+          ) : null}
+          {status.blogPostId ? (
+            <div className="mt-2 flex flex-wrap gap-2">
               <Link
                 href={`/admin/blog/${status.blogPostId}/edit`}
                 className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "gap-1.5")}
               >
                 Edit post
               </Link>
-              {status.blogSlug && (
+              {status.blogSlug ? (
                 <Link
                   href={`/blog/${status.blogSlug}`}
                   className={cn(buttonVariants({ variant: "outline", size: "sm" }), "gap-1.5")}
@@ -1221,12 +972,12 @@ function OperationalStatusBanner({ status }: { status: OperationalStatus }) {
                 >
                   View live
                 </Link>
-              )}
-            </motion.div>
-          )}
+              ) : null}
+            </div>
+          ) : null}
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 
