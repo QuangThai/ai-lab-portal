@@ -10,6 +10,10 @@ import {
   mapShowcaseToGeneratePayload,
 } from "./lib/map-context-to-generate";
 import {
+  nextStepAfterApprove,
+  type ApproveGate,
+} from "./lib/pipeline-next-stage";
+import {
   fetchProjectContextDetail,
   fetchShowcaseContextDetail,
 } from "./new/data";
@@ -94,16 +98,63 @@ async function runGenerationAction(
   redirect(`/admin/blog-ideas/${ideaId}?${params.toString()}`);
 }
 
+async function approveAndRunNext(
+  session: AdminSession,
+  ideaId: string,
+  gate: ApproveGate,
+  patchBody: Record<string, string>,
+) {
+  await adminFetch(`/admin/blog-ideas/${ideaId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(patchBody),
+  }, session);
+
+  const step = nextStepAfterApprove(gate);
+  const response = await adminFetch(step.endpoint(ideaId), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  }, session);
+
+  const params = new URLSearchParams({ opStage: step.opStage });
+  const detail = await parseResponseDetail(response);
+
+  if (step.synchronous) {
+    if (response.ok) {
+      params.set("opStatus", "completed");
+      params.set("message", step.completedMessage);
+    } else {
+      params.set("opStatus", "error");
+      params.set(
+        "message",
+        detailToMessage(detail, `Operation failed with status ${response.status}.`),
+      );
+    }
+  } else if (response.status === 202) {
+    params.set("opStatus", "queued");
+    const taskId = detailToTaskId(detail);
+    if (taskId) params.set("taskId", taskId);
+    params.set("message", detailToMessage(detail, "Generation queued."));
+  } else if (response.ok) {
+    params.set("opStatus", "completed");
+    params.set("message", step.completedMessage);
+  } else {
+    params.set("opStatus", "error");
+    params.set(
+      "message",
+      detailToMessage(detail, `Generation failed with status ${response.status}.`),
+    );
+  }
+
+  redirect(`/admin/blog-ideas/${ideaId}?${params.toString()}`);
+}
+
 export async function approveIdeaAction(formData: FormData) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/admin/login");
   const ideaId = formData.get("ideaId") as string;
-  await adminFetch(`/admin/blog-ideas/${ideaId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status: "approved" }),
-  }, session);
-  redirect("/admin/blog-ideas");
+  await approveAndRunNext(session, ideaId, "idea", { status: "approved" });
 }
 
 export async function rejectIdeaAction(formData: FormData) {
@@ -126,12 +177,7 @@ export async function approveOutlineAction(formData: FormData) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/admin/login");
   const ideaId = formData.get("ideaId") as string;
-  await adminFetch(`/admin/blog-ideas/${ideaId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ outline_status: "approved" }),
-  }, session);
-  redirect(`/admin/blog-ideas/${ideaId}`);
+  await approveAndRunNext(session, ideaId, "outline", { outline_status: "approved" });
 }
 
 export async function rejectOutlineAction(formData: FormData) {
@@ -154,12 +200,7 @@ export async function approveDraftAction(formData: FormData) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/admin/login");
   const ideaId = formData.get("ideaId") as string;
-  await adminFetch(`/admin/blog-ideas/${ideaId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ draft_status: "approved" }),
-  }, session);
-  redirect(`/admin/blog-ideas/${ideaId}`);
+  await approveAndRunNext(session, ideaId, "draft", { draft_status: "approved" });
 }
 
 export async function rejectDraftAction(formData: FormData) {
@@ -182,12 +223,9 @@ export async function approveReviewAction(formData: FormData) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/admin/login");
   const ideaId = formData.get("ideaId") as string;
-  await adminFetch(`/admin/blog-ideas/${ideaId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ technical_review_status: "approved" }),
-  }, session);
-  redirect(`/admin/blog-ideas/${ideaId}`);
+  await approveAndRunNext(session, ideaId, "review", {
+    technical_review_status: "approved",
+  });
 }
 
 export async function rejectReviewAction(formData: FormData) {
@@ -210,12 +248,9 @@ export async function approveMarketingAction(formData: FormData) {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/admin/login");
   const ideaId = formData.get("ideaId") as string;
-  await adminFetch(`/admin/blog-ideas/${ideaId}`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ marketing_status: "approved" }),
-  }, session);
-  redirect(`/admin/blog-ideas/${ideaId}`);
+  await approveAndRunNext(session, ideaId, "marketing", {
+    marketing_status: "approved",
+  });
 }
 
 export async function pollGenerationJobAction(taskId: string) {

@@ -35,6 +35,10 @@ import {
 import { buttonVariants } from "@/components/ui/button-variants";
 import { cn } from "@/lib/utils";
 
+import { approveButtonLabel } from "./lib/pipeline-next-stage";
+import { getPipelineNextAction } from "./lib/pipeline-next-action";
+import { PipelineNextActionBanner } from "./pipeline-next-action-banner";
+
 // ─── Types ───────────────────────────────────────────────────────
 
 type OutlineSection = {
@@ -183,7 +187,7 @@ function getStageStatus(idea: BlogIdeaDetail, stageId: StageId): "done" | "curre
     case "marketing":
       if (idea.marketing_status === "approved") return "done";
       if (idea.marketing_status === "pending" || idea.marketing_status === "rejected") return "current";
-      if (idea.draft_status === "approved") return "current";
+      if (idea.technical_review_status === "approved") return "current";
       return "pending";
   }
 }
@@ -239,6 +243,8 @@ const sectionAnim = {
 };
 
 export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actions }: Props) {
+  const nextAction = getPipelineNextAction(idea, claims.length, operationalStatus);
+
   return (
     <motion.div
       variants={container}
@@ -258,6 +264,7 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
         <div className="flex items-center justify-between gap-2">
           {stages.map((stage, i) => {
             const stageStatus = getStageStatus(idea, stage.id);
+            const isFocusStage = nextAction.stageId === stage.id;
             const Icon = stage.icon;
             return (
               <div key={stage.id} className="flex flex-1 items-center gap-2">
@@ -268,7 +275,9 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
                       stageStatus === "done"
                         ? "bg-brand text-white"
                         : stageStatus === "current"
-                          ? "border-2 border-brand bg-card text-brand"
+                          ? isFocusStage
+                            ? "border-2 border-brand bg-brand/10 text-brand ring-2 ring-brand/20"
+                            : "border-2 border-brand bg-card text-brand"
                           : stageStatus === "skipped"
                             ? "bg-red-100 text-red-500 dark:bg-red-950/30 dark:text-red-400"
                             : "bg-muted text-muted-foreground"
@@ -312,6 +321,9 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
             );
           })}
         </div>
+        <div className="mt-4 border-t border-border pt-4">
+          <PipelineNextActionBanner action={nextAction} />
+        </div>
       </motion.div>
 
       <AnimatePresence>
@@ -330,7 +342,7 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
       </AnimatePresence>
 
       {/* ── Header ── */}
-      <motion.div variants={sectionAnim}>
+      <motion.div variants={sectionAnim} id="pipeline-section-idea" className="scroll-mt-24">
         <div className="flex flex-col gap-2">
           <div className="flex flex-wrap items-center gap-2">
             <span
@@ -363,6 +375,15 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
           <h1 className={adminPageTitleClass}>
             {idea.title}
           </h1>
+          {idea.status === "pending" && (
+            <ActionButtons
+              approveAction={actions.approveIdea}
+              rejectAction={actions.rejectIdea}
+              ideaId={idea.id}
+              approveLabel={approveButtonLabel("idea")}
+              rejectLabel="Reject idea"
+            />
+          )}
         </div>
       </motion.div>
 
@@ -439,6 +460,7 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
       <SectionCard
         icon={BookOpen}
         label="Outline"
+        sectionId="pipeline-section-outline"
         status={idea.outline_status}
         statusColors={statusColors}
       >
@@ -467,7 +489,7 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
                 approveAction={actions.approveOutline}
                 rejectAction={actions.rejectOutline}
                 ideaId={idea.id}
-                approveLabel="Approve outline"
+                approveLabel={approveButtonLabel("outline")}
                 rejectLabel="Reject outline"
               />
             )}
@@ -512,6 +534,7 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
       <SectionCard
         icon={FileText}
         label="Draft"
+        sectionId="pipeline-section-draft"
         status={idea.draft_status}
         statusColors={statusColors}
       >
@@ -540,7 +563,7 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
                 approveAction={actions.approveDraft}
                 rejectAction={actions.rejectDraft}
                 ideaId={idea.id}
-                approveLabel="Approve draft"
+                approveLabel={approveButtonLabel("draft")}
                 rejectLabel="Reject draft"
               />
             )}
@@ -617,6 +640,7 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
       <SectionCard
         icon={Shield}
         label="Technical Review"
+        sectionId="pipeline-section-review"
         status={idea.technical_review_status}
         statusColors={statusColors}
       >
@@ -666,7 +690,7 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
                 approveAction={actions.approveReview}
                 rejectAction={actions.rejectReview}
                 ideaId={idea.id}
-                approveLabel="Accept review"
+                approveLabel={approveButtonLabel("review")}
                 rejectLabel="Request changes"
               />
             )}
@@ -761,18 +785,19 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
       <SectionCard
         icon={Megaphone}
         label="Marketing"
+        sectionId="pipeline-section-marketing"
         status={idea.marketing_status}
         statusColors={statusColors}
       >
         {!idea.marketing_metadata ? (
           <EmptyState
             message={
-              idea.draft_status === "approved"
+              idea.technical_review_status === "approved"
                 ? "No marketing metadata yet. Generation requires the worker and OpenAI key to be configured."
-                : "Approve the draft first to enable marketing generation."
+                : "Accept the technical review first to enable marketing generation."
             }
             action={
-              idea.draft_status === "approved" && !idea.marketing_status
+              idea.technical_review_status === "approved" && !idea.marketing_status
                 ? {
                     label: "Generate marketing metadata",
                     icon: Sparkles,
@@ -789,14 +814,14 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
                 approveAction={actions.approveMarketing}
                 rejectAction={actions.rejectMarketing}
                 ideaId={idea.id}
-                approveLabel="Approve marketing"
+                approveLabel={approveButtonLabel("marketing")}
                 rejectLabel="Regenerate"
               />
             )}
             {idea.marketing_status === "approved" && (
               <StatusDone label="Marketing approved" />
             )}
-            {idea.marketing_status === "rejected" && idea.draft_status === "approved" && (
+            {idea.marketing_status === "rejected" && idea.technical_review_status === "approved" && (
               <RegenerateAction
                 actionName={actions.generateMarketing}
                 ideaId={idea.id}
@@ -850,21 +875,23 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
       </SectionCard>
 
       {/* ── Claim evidence ledger ── */}
-      <SectionCard icon={Scale} label="Claims" status={null} statusColors={statusColors}>
-        {idea.draft_status !== "approved" ? (
-          <EmptyState message="Approve the draft before extracting claims for the evidence ledger." />
+      <SectionCard icon={Scale} label="Claims" sectionId="pipeline-section-claims" status={null} statusColors={statusColors}>
+        {idea.marketing_status !== "approved" ? (
+          <EmptyState message="Approve marketing metadata before extracting claims for the evidence ledger." />
         ) : (
           <div className="grid gap-4">
-            <form action={actions.extractClaims}>
-              <input name="ideaId" type="hidden" value={idea.id} />
-              <button
-                className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "gap-2")}
-                type="submit"
-              >
-                <Search className="size-4" aria-hidden />
-                Extract claims from draft
-              </button>
-            </form>
+            {claims.length === 0 ? (
+              <form action={actions.extractClaims}>
+                <input name="ideaId" type="hidden" value={idea.id} />
+                <button
+                  className={cn(buttonVariants({ variant: "secondary", size: "sm" }), "gap-2")}
+                  type="submit"
+                >
+                  <Search className="size-4" aria-hidden />
+                  Extract claims from draft
+                </button>
+              </form>
+            ) : null}
             {claims.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No claims in the ledger yet. Extract claims before publishing quantified statements.
@@ -924,6 +951,7 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
       <SectionCard
         icon={Send}
         label="Publish"
+        sectionId="pipeline-section-publish"
         status={idea.published_blog_post_id ? "approved" : idea.marketing_status}
         statusColors={statusColors}
       >
@@ -983,20 +1011,23 @@ const badgeAnim = {
 function SectionCard({
   icon: Icon,
   label,
+  sectionId,
   status,
   statusColors,
   children,
 }: {
   icon: typeof Lightbulb;
   label: string;
+  sectionId?: string;
   status: string | null;
   statusColors: Record<string, string>;
   children: React.ReactNode;
 }) {
   return (
     <motion.div
+      id={sectionId}
       variants={sectionAnim}
-      className={cn(adminPanelClass, "p-0")}
+      className={cn(adminPanelClass, "p-0 scroll-mt-24")}
     >
       <div className="flex items-center justify-between border-b border-border px-4 py-3.5 sm:px-5 sm:py-4">
         <div className="flex items-center gap-2.5">

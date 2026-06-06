@@ -21,8 +21,8 @@ with claim gate.
 | US-085 | Project/showcase picker | implemented |
 | US-086 | E2E golden path generate → publish | planned |
 | US-087 | Editorial seed via agent pipeline | planned |
-| US-088 | Pipeline stepper UX | planned |
-| US-089 | Run next stage orchestrator | planned |
+| US-088 | Pipeline stepper UX | implemented |
+| US-089 | Run next stage orchestrator | implemented |
 | US-090 | Claim review UI | planned |
 
 ## Non-goals (Phase 1)

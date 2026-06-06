@@ -27,6 +27,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
+import { approveButtonLabel } from "./lib/pipeline-next-stage";
+
 import type { BlogIdeaSummary } from "./page";
 
 function formatDate(iso: string) {
@@ -65,8 +67,6 @@ type Props = {
   ideas: BlogIdeaSummary[];
   approveIdeaAction: (formData: FormData) => Promise<void>;
   rejectIdeaAction: (formData: FormData) => Promise<void>;
-  generateOutlineAction: (formData: FormData) => Promise<void>;
-  generateDraftAction: (formData: FormData) => Promise<void>;
 };
 
 const container = {
@@ -85,8 +85,6 @@ export function BlogIdeaCardList({
   ideas,
   approveIdeaAction,
   rejectIdeaAction,
-  generateOutlineAction,
-  generateDraftAction,
 }: Props) {
   if (ideas.length === 0) {
     return (
@@ -171,7 +169,7 @@ export function BlogIdeaCardList({
                         <input name="ideaId" type="hidden" value={idea.id} />
                         <AdminListSubmitButton variant="brand">
                           <CheckCircle className="size-3.5" aria-hidden />
-                          Approve
+                          {approveButtonLabel("idea")}
                         </AdminListSubmitButton>
                       </AdminListActionForm>
                       <AdminListActionForm action={rejectIdeaAction}>
@@ -182,26 +180,6 @@ export function BlogIdeaCardList({
                         </AdminListSubmitButton>
                       </AdminListActionForm>
                     </>
-                  ) : null}
-
-                  {idea.status === "approved" && !idea.outline_status ? (
-                    <AdminListActionForm action={generateOutlineAction}>
-                      <input name="ideaId" type="hidden" value={idea.id} />
-                      <AdminListSubmitButton variant="secondary">
-                        <Sparkles className="size-3.5" aria-hidden />
-                        Outline
-                      </AdminListSubmitButton>
-                    </AdminListActionForm>
-                  ) : null}
-
-                  {idea.outline_status === "approved" && !idea.draft_status ? (
-                    <AdminListActionForm action={generateDraftAction}>
-                      <input name="ideaId" type="hidden" value={idea.id} />
-                      <AdminListSubmitButton variant="secondary">
-                        <FileText className="size-3.5" aria-hidden />
-                        Draft
-                      </AdminListSubmitButton>
-                    </AdminListActionForm>
                   ) : null}
 
                   <AdminListActionLink href={`/admin/blog-ideas/${idea.id}`} variant="ghost">

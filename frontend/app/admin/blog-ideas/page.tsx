@@ -9,8 +9,6 @@ import { auth } from "@/lib/auth/server";
 import {
   approveIdeaAction,
   rejectIdeaAction,
-  generateOutlineAction,
-  generateDraftAction,
 } from "./actions";
 import { BlogIdeaCardList } from "./idea-card-list";
 
@@ -72,8 +70,6 @@ export default async function AdminBlogIdeasPage() {
           ideas={ideas}
           approveIdeaAction={approveIdeaAction}
           rejectIdeaAction={rejectIdeaAction}
-          generateOutlineAction={generateOutlineAction}
-          generateDraftAction={generateDraftAction}
         />
       </div>
   );

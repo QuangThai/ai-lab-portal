@@ -6,6 +6,8 @@ import { auth } from "@/lib/auth/server";
 import { GenerationJobPoller } from "../generation-job-poller";
 import { BlogIdeaDetailView, type BlogIdeaDetail, type BlogClaimItem } from "../idea-detail-view";
 import {
+  approveIdeaAction,
+  rejectIdeaAction,
   approveOutlineAction,
   rejectOutlineAction,
   generateOutlineAction,
@@ -114,8 +116,8 @@ export default async function AdminBlogIdeaDetailPage({
         claims={claims}
         operationalStatus={operationalStatus}
         actions={{
-          approveIdea: approveOutlineAction,
-          rejectIdea: rejectOutlineAction,
+          approveIdea: approveIdeaAction,
+          rejectIdea: rejectIdeaAction,
           generateOutline: generateOutlineAction,
           approveOutline: approveOutlineAction,
           rejectOutline: rejectOutlineAction,

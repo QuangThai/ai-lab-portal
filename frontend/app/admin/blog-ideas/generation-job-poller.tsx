@@ -23,6 +23,7 @@ const stageLabels: Record<string, string> = {
   draft: "Writing draft",
   "technical-review": "Running technical review",
   marketing: "Generating marketing metadata",
+  claims: "Extracting claims",
   publish: "Publishing to blog",
 };
 
