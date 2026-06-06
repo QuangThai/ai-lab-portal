@@ -50,14 +50,16 @@ Playwright starts a local web server and expects Postgres on host port **15432**
 If Docker Desktop is stopped, E2E fails before any test runs.
 
 ```bash
-# From repo root — confirm infra is up before E2E
-docker compose ps postgres redis
-docker compose up -d postgres redis
-python -m alembic -c backend/alembic.ini upgrade head
+# From repo root — automated preflight (starts infra, waits for Postgres, migrates)
+scripts/e2e-preflight.sh
+# Windows (Git Bash): scripts/e2e-preflight.bat
+
+# Then run E2E from frontend/
+cd frontend && CI=1 E2E_PORT=13100 npm run test:e2e
 ```
 
 Symptom: `webServer` timeout or Postgres connection refused in Playwright logs.
-Fix: start Docker Desktop, then `docker compose up -d postgres redis`.
+Fix: start Docker Desktop, then re-run `scripts/e2e-preflight.sh`.
 
 ## E2E secret alignment (backlog #14)
 

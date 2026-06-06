@@ -28,6 +28,8 @@ python scripts/trace_update.py --id 122   # Direct access to trace record update
 python scripts/proof_matrix_gaps.py       # Direct access to proof matrix gap audit
 node scripts/setup-git-hooks.mjs      # Enable repo-root Husky hooks (also runs on frontend npm install)
 python scripts/deploy_smoke.py        # Smoke-test deployed backend/frontend URLs
+scripts/e2e-preflight.sh            # Start Postgres/Redis and migrate before Playwright E2E
+scripts/e2e-preflight.bat           # Windows wrapper (requires Git Bash)
 scripts/bin/harness-cli migrate       # Apply pending schema migrations
 scripts/bin/harness-cli --version     # Print the installed CLI version
 ```
