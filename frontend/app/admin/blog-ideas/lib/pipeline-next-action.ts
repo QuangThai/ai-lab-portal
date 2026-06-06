@@ -216,7 +216,11 @@ export function getPipelineNextAction(
     };
   }
 
-  if (idea.marketing_status === "approved" && claimsCount === 0) {
+  if (
+    idea.marketing_status === "approved"
+    && idea.technical_review_status === "approved"
+    && claimsCount === 0
+  ) {
     return {
       kind: "claims",
       stageId: "claims",
@@ -226,7 +230,7 @@ export function getPipelineNextAction(
     };
   }
 
-  if (idea.marketing_status === "approved") {
+  if (idea.marketing_status === "approved" && idea.technical_review_status === "approved") {
     return {
       kind: "publish",
       stageId: "publish",

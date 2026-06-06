@@ -21,6 +21,9 @@ def create_celery_app(settings: Settings | None = None) -> Celery:
         timezone="UTC",
         enable_utc=True,
     )
+    if resolved_settings.llm_e2e_fake:
+        celery_app.conf.task_always_eager = True
+        celery_app.conf.task_eager_propagates = True
     return celery_app
 
 

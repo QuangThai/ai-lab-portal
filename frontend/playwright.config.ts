@@ -3,6 +3,17 @@ import { defineConfig, devices } from "@playwright/test";
 const e2ePort = process.env.E2E_PORT ?? "13100";
 const e2eBaseUrl = `http://127.0.0.1:${e2ePort}`;
 const e2eAdminBoundarySecret = "e2e-test-admin-boundary-secret-at-least-32-chars";
+const e2eDatabaseUrl =
+  "postgresql+psycopg://ai_lab:ai_lab_dev_password@localhost:15432/ai_lab_portal";
+const e2eRedisUrl = "redis://127.0.0.1:6379/0";
+
+const backendEnvPrefix = [
+  `set AI_LAB_ADMIN_BOUNDARY_SECRET=${e2eAdminBoundarySecret}`,
+  `set AI_LAB_DATABASE_URL=${e2eDatabaseUrl}`,
+  `set AI_LAB_REDIS_URL=${e2eRedisUrl}`,
+  "set AI_LAB_LLM_E2E_FAKE=true",
+  "set AI_LAB_ENVIRONMENT=development",
+].join("&& ");
 
 // Force isolated e2e env so local .env (cloudflare URLs, custom secrets) cannot break tests.
 process.env.BETTER_AUTH_SECRET = "test-better-auth-secret-at-least-32-chars";
@@ -23,7 +34,7 @@ export default defineConfig({
   },
   webServer: [
     {
-      command: `set AI_LAB_ADMIN_BOUNDARY_SECRET=${e2eAdminBoundarySecret}&& set AI_LAB_DATABASE_URL=postgresql+psycopg://ai_lab:ai_lab_dev_password@localhost:15432/ai_lab_portal&& cd .. && python -m alembic -c backend/alembic.ini upgrade head && python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 18000`,
+      command: `${backendEnvPrefix}&& cd .. && python -m alembic -c backend/alembic.ini upgrade head && python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 18000`,
       url: "http://127.0.0.1:18000/health",
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

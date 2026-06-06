@@ -19,7 +19,7 @@ with claim gate.
 | --- | --- | --- |
 | US-084 | Generate from context UI | implemented |
 | US-085 | Project/showcase picker | implemented |
-| US-086 | E2E golden path generate → publish | planned |
+| US-086 | E2E golden path generate → publish | implemented |
 | US-087 | Editorial seed via agent pipeline | planned |
 | US-088 | Pipeline stepper UX | implemented |
 | US-089 | Run next stage orchestrator | implemented |

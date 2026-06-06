@@ -203,7 +203,7 @@ test.describe("US-026: Admin blog ideas list CRUD", () => {
       await expect(page.getByRole("link", { name: new RegExp(title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "i") })).toBeVisible();
 
       // Click the Approve button for this idea
-      await page.getByRole("button", { name: "Approve" }).first().click();
+      await page.getByRole("button", { name: /Approve & generate outline/i }).first().click();
       await page.waitForTimeout(500);
     } finally {
       await dbQuery("delete from blog_ideas where id = $1", [ideaId]);

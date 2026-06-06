@@ -7,6 +7,7 @@ import json
 from backend.app.blog_ideas import (
     BlogIdeaCreate,
     OutlineSection,
+    marketing_metadata_for_storage,
 )
 from backend.app.celery_app import celery_app
 from backend.app.llm.schemas import BlogDraft
@@ -253,7 +254,9 @@ def generate_marketing_metadata_task(self, idea_id: str) -> dict:
             },
             output_schema=MarketingMetadata,
         )
-        updated = repo.set_marketing_metadata(idea_id, result.model_dump(), status="pending")
+        updated = repo.set_marketing_metadata(
+            idea_id, marketing_metadata_for_storage(result), status="pending"
+        )
         if updated is None:
             raise RuntimeError(
                 f"Failed to store marketing metadata for idea {idea_id}"

@@ -41,7 +41,22 @@ from backend.app.generation_jobs import (
     GenerationJobRepository,
     GenerationStage,
 )
+from backend.app.llm.schemas import MarketingMetadata
 from backend.app.settings import Settings
+
+
+def marketing_metadata_for_storage(result: MarketingMetadata) -> dict:
+    """Normalize LLM marketing output to the admin UI / publish contract."""
+    return {
+        "seo_title": result.seo_title,
+        "meta_description": result.meta_description,
+        "canonical_url": "",
+        "social_headline": result.linkedin_post,
+        "social_description": result.x_post,
+        "cta_text": result.cta,
+        "tags": [],
+    }
+
 
 IdeaSource = Literal["manual", "ai_generated"]
 IdeaStatus = Literal["pending", "approved", "rejected"]
@@ -230,6 +245,8 @@ class BlogIdeaRepository:
             updated.outline_status = payload.outline_status
         if payload.draft_status is not None:
             updated.draft_status = payload.draft_status
+        if payload.technical_review_status is not None:
+            updated.technical_review_status = payload.technical_review_status
         if payload.marketing_status is not None:
             updated.marketing_status = payload.marketing_status
         updated.updated_at = datetime.now(UTC)
@@ -418,6 +435,8 @@ class PostgresBlogIdeaRepository(BlogIdeaRepository):
             values["outline_status"] = payload.outline_status
         if payload.draft_status is not None:
             values["draft_status"] = payload.draft_status
+        if payload.technical_review_status is not None:
+            values["technical_review_status"] = payload.technical_review_status
         if payload.marketing_status is not None:
             values["marketing_status"] = payload.marketing_status
 
@@ -597,6 +616,42 @@ def _dispatch_generation_task(
     )
 
 
+def _dispatch_or_run_generation(
+    repository: BlogIdeaRepository,
+    task: Any,
+    *,
+    stage: GenerationStage,
+    idea_id: str,
+    message: str,
+    jobs_repository: GenerationJobRepository | None,
+    kwargs: dict[str, Any],
+    settings: Settings,
+) -> Any:
+    """Queue Celery work for Postgres, or run inline for in-memory repositories."""
+    if not isinstance(repository, PostgresBlogIdeaRepository):
+        return cast(Any, task)(**kwargs)
+
+    celery_task_id = f"celery_{uuid4().hex}"
+    job_idea_id = idea_id if not idea_id.startswith("pending:") else f"pending:{celery_task_id}"
+    if jobs_repository is not None:
+        jobs_repository.create_queued(
+            blog_idea_id=job_idea_id,
+            stage=stage,
+            celery_task_id=celery_task_id,
+        )
+
+    result = task.apply_async(kwargs=kwargs, task_id=celery_task_id)
+    if settings.llm_e2e_fake and result.ready():
+        if result.successful():
+            return result.get()
+        raise HTTPException(status_code=500, detail=str(result.result))
+
+    raise HTTPException(
+        status_code=202,
+        detail={"task_id": celery_task_id, "message": message},
+    )
+
+
 def create_blog_idea_routes(
     repository: BlogIdeaRepository,
     settings: Settings,
@@ -693,31 +748,22 @@ def create_blog_idea_routes(
         """
         from backend.app.tasks import generate_blog_idea_task
 
-        if isinstance(repository, PostgresBlogIdeaRepository):
-            task = cast(Any, generate_blog_idea_task).delay(
-                project_name=payload.project_name,
-                project_summary=payload.project_summary,
-                ai_capabilities=payload.ai_capabilities,
-                technical_highlights=payload.technical_highlights,
-                business_value=payload.business_value,
-            )
-            _dispatch_generation_task(
-                stage="idea",
-                idea_id=f"pending:{task.id}",
-                celery_task_id=task.id,
-                message="Idea generation started",
-                jobs_repository=jobs_repository,
-                track_job=jobs_repository is not None,
-            )
-
-        result = cast(Any, generate_blog_idea_task)(
-            project_name=payload.project_name,
-            project_summary=payload.project_summary,
-            ai_capabilities=payload.ai_capabilities,
-            technical_highlights=payload.technical_highlights,
-            business_value=payload.business_value,
+        return _dispatch_or_run_generation(
+            repository,
+            generate_blog_idea_task,
+            stage="idea",
+            idea_id="pending:",
+            message="Idea generation started",
+            jobs_repository=jobs_repository,
+            kwargs={
+                "project_name": payload.project_name,
+                "project_summary": payload.project_summary,
+                "ai_capabilities": payload.ai_capabilities,
+                "technical_highlights": payload.technical_highlights,
+                "business_value": payload.business_value,
+            },
+            settings=settings,
         )
-        return result
 
     @router.post("/{idea_id}/generate-outline")
     async def generate_outline(
@@ -740,19 +786,16 @@ def create_blog_idea_routes(
 
         from backend.app.tasks import generate_blog_outline_task
 
-        if isinstance(repository, PostgresBlogIdeaRepository):
-            task = cast(Any, generate_blog_outline_task).delay(idea_id=idea_id)
-            _dispatch_generation_task(
-                stage="outline",
-                idea_id=idea_id,
-                celery_task_id=task.id,
-                message="Outline generation started",
-                jobs_repository=jobs_repository,
-                track_job=True,
-            )
-
-        result = cast(Any, generate_blog_outline_task)(idea_id=idea_id)
-        return result
+        return _dispatch_or_run_generation(
+            repository,
+            generate_blog_outline_task,
+            stage="outline",
+            idea_id=idea_id,
+            message="Outline generation started",
+            jobs_repository=jobs_repository,
+            kwargs={"idea_id": idea_id},
+            settings=settings,
+        )
 
     @router.post("/{idea_id}/generate-draft")
     async def generate_draft(
@@ -774,19 +817,16 @@ def create_blog_idea_routes(
 
         from backend.app.tasks import generate_blog_draft_task
 
-        if isinstance(repository, PostgresBlogIdeaRepository):
-            task = cast(Any, generate_blog_draft_task).delay(idea_id=idea_id)
-            _dispatch_generation_task(
-                stage="draft",
-                idea_id=idea_id,
-                celery_task_id=task.id,
-                message="Draft generation started",
-                jobs_repository=jobs_repository,
-                track_job=True,
-            )
-
-        result = cast(Any, generate_blog_draft_task)(idea_id=idea_id)
-        return result
+        return _dispatch_or_run_generation(
+            repository,
+            generate_blog_draft_task,
+            stage="draft",
+            idea_id=idea_id,
+            message="Draft generation started",
+            jobs_repository=jobs_repository,
+            kwargs={"idea_id": idea_id},
+            settings=settings,
+        )
 
     @router.post("/{idea_id}/review-technical")
     async def review_technical(
@@ -809,19 +849,16 @@ def create_blog_idea_routes(
 
         from backend.app.tasks import generate_technical_review_task
 
-        if isinstance(repository, PostgresBlogIdeaRepository):
-            task = cast(Any, generate_technical_review_task).delay(idea_id=idea_id)
-            _dispatch_generation_task(
-                stage="technical_review",
-                idea_id=idea_id,
-                celery_task_id=task.id,
-                message="Technical review started",
-                jobs_repository=jobs_repository,
-                track_job=True,
-            )
-
-        result = cast(Any, generate_technical_review_task)(idea_id=idea_id)
-        return result
+        return _dispatch_or_run_generation(
+            repository,
+            generate_technical_review_task,
+            stage="technical_review",
+            idea_id=idea_id,
+            message="Technical review started",
+            jobs_repository=jobs_repository,
+            kwargs={"idea_id": idea_id},
+            settings=settings,
+        )
 
     @router.post("/{idea_id}/generate-marketing")
     async def generate_marketing(
@@ -844,19 +881,16 @@ def create_blog_idea_routes(
 
         from backend.app.tasks import generate_marketing_metadata_task
 
-        if isinstance(repository, PostgresBlogIdeaRepository):
-            task = cast(Any, generate_marketing_metadata_task).delay(idea_id=idea_id)
-            _dispatch_generation_task(
-                stage="marketing",
-                idea_id=idea_id,
-                celery_task_id=task.id,
-                message="Marketing metadata generation started",
-                jobs_repository=jobs_repository,
-                track_job=True,
-            )
-
-        result = cast(Any, generate_marketing_metadata_task)(idea_id=idea_id)
-        return result
+        return _dispatch_or_run_generation(
+            repository,
+            generate_marketing_metadata_task,
+            stage="marketing",
+            idea_id=idea_id,
+            message="Marketing metadata generation started",
+            jobs_repository=jobs_repository,
+            kwargs={"idea_id": idea_id},
+            settings=settings,
+        )
 
     @router.post("/{idea_id}/publish-to-blog")
     async def publish_to_blog(

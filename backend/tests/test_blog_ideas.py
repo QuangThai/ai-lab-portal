@@ -474,6 +474,27 @@ class TestOutlineWorkflow:
         assert updated is not None
         assert updated.outline_status == "approved"
 
+    def test_update_technical_review_status_via_patch(self) -> None:
+        repo = BlogIdeaRepository()
+        created = repo.create(
+            BlogIdeaCreate(
+                title="Review Approval",
+                angle="Test",
+                target_reader="Devs",
+                article_goal="Test",
+            )
+        )
+        repo.set_technical_review(
+            created.id,
+            {"overall_risk": "low", "issues": [], "approval_recommendation": "approve"},
+            status="pending",
+        )
+        updated = repo.update(
+            created.id, BlogIdeaUpdate(technical_review_status="approved")
+        )
+        assert updated is not None
+        assert updated.technical_review_status == "approved"
+
     def test_generate_outline_requires_approved_idea(self) -> None:
         """API returns 400 when outline is requested for a non-approved idea."""
         app = create_app(settings=_test_settings())

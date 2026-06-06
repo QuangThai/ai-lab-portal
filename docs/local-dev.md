@@ -49,6 +49,9 @@ If migrations fail with connection refused, confirm root `.env`
 Playwright starts a local web server and expects Postgres on host port **15432**.
 If Docker Desktop is stopped, E2E fails before any test runs.
 
+Blog agent golden-path E2E (`US-086`) uses deterministic fake LLM responses
+(`AI_LAB_LLM_E2E_FAKE=true` in `frontend/playwright.config.ts`) — no OpenAI key required.
+
 ```bash
 # From repo root — automated preflight (starts infra, waits for Postgres, migrates)
 scripts/e2e-preflight.sh

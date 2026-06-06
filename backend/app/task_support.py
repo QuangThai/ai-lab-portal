@@ -122,6 +122,21 @@ def llm_service_for_idea(
     settings: Settings | None = None,
 ) -> LLMService:
     resolved = settings or Settings()
+    if resolved.llm_e2e_fake:
+        from backend.app.llm.e2e_fake_responses import build_e2e_fake_llm_service
+
+        inner = build_e2e_fake_llm_service()
+        recorder = ai_run_repository(resolved)
+        if recorder is None:
+            return inner
+        return RecordingLLMService(
+            inner,
+            recorder,
+            entity_type="blog_idea",
+            entity_id=idea_id,
+            provider="e2e_fake",
+            model="e2e_fake",
+        )
     api_key = resolved.llm_openai_api_key.get_secret_value()
     if not api_key:
         raise RuntimeError(
