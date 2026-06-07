@@ -98,7 +98,7 @@ from backend.app.news_submitted_links import (
     create_submitted_link_routes,
 )
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 
 from backend.app.request_logging import RequestLoggingMiddleware
 from backend.app.settings import Settings, get_settings
@@ -318,6 +318,78 @@ def create_app(
             return response
 
     app.add_middleware(PublicCacheMiddleware)
+
+    # Redis server-side cache for public GET endpoints
+    class RedisResponseCacheMiddleware(BaseHTTPMiddleware):
+        """Cache successful GET /public/ responses in Redis with 60s TTL.
+
+        Check Redis before hitting the handler; store responses after.
+        Falls back gracefully if Redis is unavailable.
+        """
+
+        def __init__(self, app: FastAPI, redis_url: str, ttl: int = 60) -> None:
+            super().__init__(app)
+            self._redis_url = redis_url
+            self._ttl = ttl
+            self._r = None
+            self._available = True
+
+        def _get_redis(self):
+            if self._r is None and self._available:
+                try:
+                    import redis as _redis
+                    self._r = _redis.from_url(
+                        self._redis_url, socket_connect_timeout=1, socket_timeout=1
+                    )
+                    self._r.ping()
+                except Exception:
+                    self._r = None
+                    self._available = False
+            return self._r
+
+        async def dispatch(
+            self, request: Request, call_next: RequestResponseEndpoint
+        ) -> Response:
+            path = request.url.path
+            if request.method != "GET" or not path.startswith("/public/"):
+                return await call_next(request)
+
+            cache_key = f"cache:{path}"
+            if request.url.query:
+                cache_key += f"?{request.url.query}"
+
+            r = self._get_redis()
+            if r is not None:
+                try:
+                    cached = r.get(cache_key)
+                    if cached is not None:
+                        import json as _json
+                        data = _json.loads(cached)
+                        return JSONResponse(
+                            content=data,
+                            status_code=200,
+                            headers={
+                                "Cache-Control": f"public, max-age={self._ttl}, s-maxage=300, stale-while-revalidate=600",
+                                "X-Cache": "HIT",
+                            },
+                        )
+                except Exception:
+                    pass
+
+            response = await call_next(request)
+
+            if r is not None and response.status_code == 200:
+                try:
+                    import json as _json
+                    payload = _json.dumps(_json.loads(response.body))
+                    r.setex(cache_key, self._ttl, payload)
+                    response.headers["X-Cache"] = "MISS"
+                except Exception:
+                    pass
+
+            return response
+
+    app.add_middleware(RedisResponseCacheMiddleware, redis_url=str(resolved_settings.redis_url))
     app.add_api_route("/health", health, methods=["GET"])
 
     def require_configured_admin_identity(
