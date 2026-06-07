@@ -146,7 +146,11 @@ DRAFT_SECTION_PROMPT = PromptTemplate(
         "- Natural English: varied sentence length, active voice, no AI clichés.\n"
         "- Depth: 250–400 words for this section alone — 2–4 substantive paragraphs.\n"
         "- Ground examples in the project context; do not invent metrics or customers.\n"
-        "- Do not repeat the section heading; do not write other sections."
+        "- Do not repeat the section heading; do not write other sections.\n"
+        "- If you do not have enough project context for this section, describe the "
+        "approach qualitatively rather than fabricating details.\n"
+        "- Minimum 150 words per section. If you cannot reach 150 words, expand with "
+        "relevant technical context or implications."
     ),
     user_template=(
         "Article outline (full):\n{outline_json}\n\n"
@@ -206,9 +210,14 @@ MARKETING_META_PROMPT = PromptTemplate(
         "Title: {title}\n"
         "Angle: {angle}\n"
         "Target reader: {target_reader}\n\n"
-        "Full draft:\n{draft_markdown}"
+        "Full draft:\n{draft_markdown}\n\n"
+        "Guidelines:\n"
+        "- SEO title: 40-60 characters, include primary keyword, be clickable.\n"
+        "- Meta description: 120-160 characters, summarize value, include CTA.\n"
+        "- Social posts: natural voice, specific hook, avoid hype words.\n"
+        "- CTA: one clear action for the reader (\"Read the case study\", \"Learn how we built it\")."
     ),
-    version="2",
+    version="3",
 )
 
 
@@ -239,18 +248,51 @@ AI_NEWS_SCORING_PROMPT = PromptTemplate(
 # Registry
 # ---------------------------------------------------------------------------
 
+SEO_AUDIT_PROMPT = PromptTemplate(
+    system=(
+        "You are an SEO auditor reviewing a B2B AI Lab blog post. "
+        "Evaluate the draft's search engine optimization quality based on the "
+        "draft content and its marketing metadata (SEO title, meta description, keywords).\n\n"
+        "Score 0-100 based on:\n"
+        "- Title quality: length (40-60 chars ideal), keyword inclusion, clickability\n"
+        "- Meta description: length (120-160 chars ideal), keyword usage, CTA\n"
+        "- Heading structure: H1 presence, logical H2/H3 hierarchy, keyword distribution\n"
+        "- Keyword usage: target keyword placement in title, H1, first paragraph, URL slug\n"
+        "- Readability: sentence length, paragraph structure, reading level\n"
+        "- Internal linking opportunities: relevant links to other blog posts, showcases\n"
+        "- Content structure: intro clarity, scannability, logical flow\n\n"
+        "Be constructive and specific. Suggest concrete improvements."
+    ),
+    user_template=(
+        "SEO audit the following blog draft and its marketing metadata.\n\n"
+        "--- Draft ---\n{draft_markdown}\n\n"
+        "--- Marketing Metadata ---\n{marketing_metadata}\n"
+    ),
+    version="1",
+)
+
+
 CLAIM_EXTRACTION_PROMPT = PromptTemplate(
     system=(
         "You extract factual claims from a B2B blog draft. "
         "Flag quantified metrics, performance comparisons, and product capability claims "
-        "that would need evidence before publishing."
+        "that would need evidence before publishing.\n\n"
+        "Rules:\n"
+        "- Mark requires_evidence=true for: numbers, percentages, benchmarks, "
+        "outcomes, comparisons (\"X% faster\", \"reduced by Y\", \"beats Z\").\n"
+        "- Mark requires_evidence=false for: opinion, qualitative statements, "
+        "forward-looking statements, or descriptions of intended functionality.\n"
+        "- Do NOT flag: citations of open-source projects, references to well-known "
+        "techniques (RAG, vector search, fine-tuning), or general industry trends.\n"
+        "- Extract at most 15 claims per draft to keep review manageable.\n"
+        "- Return an empty claims list if the draft has no factual claims."
     ),
     user_template=(
         "Extract notable claims from this draft. "
         "Mark requires_evidence=true for numbers, percentages, benchmarks, or outcomes.\n\n"
         "{draft_markdown}"
     ),
-    version="1",
+    version="2",
 )
 
 
@@ -262,5 +304,6 @@ PROMPT_REGISTRY: dict[str, PromptTemplate] = {
     "technical_review": TECHNICAL_REVIEW_PROMPT,
     "marketing_metadata": MARKETING_META_PROMPT,
     "claim_extraction": CLAIM_EXTRACTION_PROMPT,
+    "seo_audit": SEO_AUDIT_PROMPT,
     "ai_news_scoring": AI_NEWS_SCORING_PROMPT,
 }

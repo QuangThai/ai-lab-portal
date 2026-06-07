@@ -100,6 +100,8 @@ class BlogIdea(BaseModel):
     technical_review_status: str | None = None
     marketing_metadata: dict | None = None
     marketing_status: str | None = None
+    seo_audit: dict | None = None
+    seo_audit_status: str | None = None
     published_blog_post_id: str | None = None
     scheduled_at: datetime | None = None
     created_at: datetime
@@ -125,6 +127,7 @@ class BlogIdeaUpdate(BaseModel):
     draft_status: str | None = None
     technical_review_status: str | None = None
     marketing_status: str | None = None
+    seo_audit_status: str | None = None
     scheduled_at: datetime | None = None
 
 
@@ -164,6 +167,7 @@ class BlogIdeaSummary(BaseModel):
     draft_status: str | None = None
     technical_review_status: str | None = None
     marketing_status: str | None = None
+    seo_audit_status: str | None = None
     created_at: datetime
 
 
@@ -191,6 +195,7 @@ class BlogIdeaRepository:
                 draft_status=i.draft_status,
                 technical_review_status=i.technical_review_status,
                 marketing_status=i.marketing_status,
+                seo_audit_status=i.seo_audit_status,
                 created_at=i.created_at,
             )
             for i in ideas
@@ -254,6 +259,8 @@ class BlogIdeaRepository:
             updated.technical_review_status = payload.technical_review_status
         if payload.marketing_status is not None:
             updated.marketing_status = payload.marketing_status
+        if payload.seo_audit_status is not None:
+            updated.seo_audit_status = payload.seo_audit_status
         if payload.scheduled_at is not None:
             updated.scheduled_at = payload.scheduled_at
         updated.updated_at = datetime.now(UTC)
@@ -324,6 +331,22 @@ class BlogIdeaRepository:
         self._ideas[idea_id] = updated
         return updated
 
+    def set_seo_audit(
+        self,
+        idea_id: str,
+        audit: dict,
+        status: str = "pending",
+    ) -> BlogIdea | None:
+        idea = self._ideas.get(idea_id)
+        if idea is None:
+            return None
+        updated = idea.model_copy(deep=True)
+        updated.seo_audit = audit
+        updated.seo_audit_status = status
+        updated.updated_at = datetime.now(UTC)
+        self._ideas[idea_id] = updated
+        return updated
+
     def link_published_post(self, idea_id: str, post_id: str) -> BlogIdea | None:
         idea = self._ideas.get(idea_id)
         if idea is None:
@@ -354,6 +377,7 @@ class PostgresBlogIdeaRepository(BlogIdeaRepository):
                     blog_ideas_table.c.draft_status,
                     blog_ideas_table.c.technical_review_status,
                     blog_ideas_table.c.marketing_status,
+                    blog_ideas_table.c.seo_audit_status,
                     blog_ideas_table.c.created_at,
                 ).order_by(blog_ideas_table.c.created_at.desc())
             ).mappings()
@@ -446,6 +470,8 @@ class PostgresBlogIdeaRepository(BlogIdeaRepository):
             values["technical_review_status"] = payload.technical_review_status
         if payload.marketing_status is not None:
             values["marketing_status"] = payload.marketing_status
+        if payload.seo_audit_status is not None:
+            values["seo_audit_status"] = payload.seo_audit_status
         if payload.scheduled_at is not None:
             values["scheduled_at"] = payload.scheduled_at
 
@@ -545,6 +571,28 @@ class PostgresBlogIdeaRepository(BlogIdeaRepository):
             )
         return self.get_by_id(idea_id)
 
+    def set_seo_audit(
+        self,
+        idea_id: str,
+        audit: dict,
+        status: str = "pending",
+    ) -> BlogIdea | None:
+        existing = self.get_by_id(idea_id)
+        if existing is None:
+            return None
+        values: dict = {
+            "seo_audit": json.dumps(audit),
+            "seo_audit_status": status,
+            "updated_at": datetime.now(UTC),
+        }
+        with self._engine.begin() as conn:
+            conn.execute(
+                update(blog_ideas_table)
+                .where(blog_ideas_table.c.id == idea_id)
+                .values(**values)
+            )
+        return self.get_by_id(idea_id)
+
     def link_published_post(self, idea_id: str, post_id: str) -> BlogIdea | None:
         existing = self.get_by_id(idea_id)
         if existing is None:
@@ -569,6 +617,7 @@ def _row_to_idea(row: dict) -> BlogIdea:
     raw_outline = data.pop("outline_sections", None)
     raw_review = data.pop("technical_review", None)
     raw_marketing = data.pop("marketing_metadata", None)
+    raw_seo = data.pop("seo_audit", None)
     idea = BlogIdea(**data)
     if raw_pos:
         try:
@@ -594,6 +643,11 @@ def _row_to_idea(row: dict) -> BlogIdea:
     if raw_marketing:
         try:
             idea.marketing_metadata = json.loads(raw_marketing)
+        except (json.JSONDecodeError, TypeError):
+            pass
+    if raw_seo:
+        try:
+            idea.seo_audit = json.loads(raw_seo)
         except (json.JSONDecodeError, TypeError):
             pass
     return idea
@@ -1040,6 +1094,43 @@ def create_blog_idea_routes(
             settings=settings,
         )
 
+    @router.post("/{idea_id}/audit-seo")
+    async def audit_seo(
+        idea_id: str,
+        _identity: AdminIdentity = Depends(require_identity),
+    ) -> BlogIdea | dict:
+        """Run AI SEO audit on an approved draft with marketing metadata.
+
+        Requires draft_status == approved and marketing_metadata to exist.
+        In test/dev runs inline; in production dispatches a Celery task.
+        """
+        idea = repository.get_by_id(idea_id)
+        if idea is None:
+            raise HTTPException(status_code=404, detail="Blog idea not found")
+        if idea.draft_status != "approved":
+            raise HTTPException(
+                status_code=400,
+                detail="SEO audit requires an approved draft",
+            )
+        if not idea.marketing_metadata:
+            raise HTTPException(
+                status_code=400,
+                detail="SEO audit requires marketing metadata",
+            )
+
+        from backend.app.tasks import audit_seo_task
+
+        return _dispatch_or_run_generation(
+            repository,
+            audit_seo_task,
+            stage="seo_audit",
+            idea_id=idea_id,
+            message="SEO audit started",
+            jobs_repository=jobs_repository,
+            kwargs={"idea_id": idea_id},
+            settings=settings,
+        )
+
     @router.post("/{idea_id}/publish-to-blog")
     async def publish_to_blog(
         idea_id: str,
@@ -1346,7 +1437,21 @@ def create_blog_idea_routes(
 
         if idea.marketing_status == "pending" and idea.marketing_metadata:
             repository.update(idea_id, BlogIdeaUpdate(marketing_status="approved"))
-            # After marketing approval, extract claims synchronously
+            # After marketing approval, check if SEO audit should run
+            if idea.seo_audit or idea.seo_audit_status is not None:
+                from backend.app.tasks import audit_seo_task
+
+                return _dispatch_or_run_generation(
+                    repository,
+                    audit_seo_task,
+                    stage="seo_audit",
+                    idea_id=idea_id,
+                    message="Marketing approved, SEO audit started",
+                    jobs_repository=jobs_repository,
+                    kwargs={"idea_id": idea_id},
+                    settings=settings,
+                )
+            # No SEO audit configured — go straight to claims
             return await _run_next_extract_claims(idea_id, repository, claims_repository)
 
         if idea.marketing_status == "rejected":
@@ -1363,7 +1468,27 @@ def create_blog_idea_routes(
                 settings=settings,
             )
 
-        # Gate 6: Claims → Publish
+        # Gate 6: SEO audit (advisory in MVP — skip if not configured)
+        if idea.seo_audit_status == "pending" and idea.seo_audit:
+            repository.update(idea_id, BlogIdeaUpdate(seo_audit_status="approved"))
+            # After SEO approval, extract claims synchronously
+            return await _run_next_extract_claims(idea_id, repository, claims_repository)
+
+        if idea.seo_audit_status == "rejected":
+            from backend.app.tasks import audit_seo_task
+
+            return _dispatch_or_run_generation(
+                repository,
+                audit_seo_task,
+                stage="seo_audit",
+                idea_id=idea_id,
+                message="SEO audit regenerated",
+                jobs_repository=jobs_repository,
+                kwargs={"idea_id": idea_id},
+                settings=settings,
+            )
+
+        # Gate 7: Claims → Publish
         if (idea.marketing_status == "approved"
                 and idea.technical_review_status == "approved"):
             # Check if claims exist

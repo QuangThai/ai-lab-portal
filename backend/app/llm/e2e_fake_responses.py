@@ -8,6 +8,7 @@ from backend.app.llm.schemas import (
     BlogOutline,
     BlogOutlineSection,
     MarketingMetadata,
+    SeoAudit,
     TechnicalReview,
 )
 from backend.app.llm.service import FakeLLMService, LLMService
@@ -51,6 +52,18 @@ _E2E_MARKETING = MarketingMetadata(
     cta="Read the full workflow",
 )
 
+_E2E_SEO_AUDIT = SeoAudit(
+    overall_score=85.0,
+    title_analysis="SEO title is well-optimized at 42 characters with primary keyword included.",
+    meta_description_analysis="Meta description is 145 chars, includes target keywords and a clear CTA.",
+    heading_structure="Good H1/H2 hierarchy. H2 sections cover key topics with logical flow.",
+    keyword_analysis="Primary keyword appears in title, H1, and first paragraph. Secondary keywords present in H2s.",
+    readability_assessment="Flesch score ~55 (standard). Sentences average 18 words. Good paragraph breaks.",
+    internal_linking="Consider adding 1-2 internal links to related blog posts or case studies.",
+    issues=[],
+    approval_recommendation="approve",
+)
+
 
 def build_e2e_fake_llm_service() -> LLMService:
     return FakeLLMService(
@@ -60,5 +73,6 @@ def build_e2e_fake_llm_service() -> LLMService:
             "draft_writer": _E2E_DRAFT,
             "technical_review": _E2E_REVIEW,
             "marketing_metadata": _E2E_MARKETING,
+            "seo_audit": _E2E_SEO_AUDIT,
         }
     )

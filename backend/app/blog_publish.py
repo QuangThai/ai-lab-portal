@@ -62,6 +62,12 @@ def validate_idea_ready_to_publish(idea: BlogIdea) -> None:
             status_code=400,
             detail="Publishing requires approved marketing metadata",
         )
+    # SEO audit is advisory in MVP: only block if audit was run and rejected.
+    if idea.seo_audit_status == "rejected":
+        raise HTTPException(
+            status_code=400,
+            detail="Publishing requires an approved SEO audit (current: rejected)",
+        )
     if not idea.draft_markdown or not idea.draft_markdown.strip():
         raise HTTPException(
             status_code=400, detail="Publishing requires draft markdown content"

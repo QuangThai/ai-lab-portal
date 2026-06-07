@@ -12,7 +12,7 @@ from sqlalchemy import Engine, insert, select, update
 from backend.app.database import blog_generation_jobs as jobs_table
 
 GenerationStage = Literal[
-    "idea", "outline", "draft", "technical_review", "marketing"
+    "idea", "outline", "draft", "technical_review", "marketing", "seo_audit"
 ]
 GenerationJobStatus = Literal["queued", "running", "completed", "failed"]
 

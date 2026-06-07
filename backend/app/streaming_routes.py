@@ -37,6 +37,7 @@ from backend.app.llm.schemas import (
     BlogDraft,
     BlogOutline,
     MarketingMetadata,
+    SeoAudit,
     TechnicalReview,
 )
 from backend.app.llm.streaming import stream_generate
@@ -326,6 +327,72 @@ def _build_streaming_router(
                     err_event = _json.dumps({
                         "type": "error",
                         "data": f"Failed to save marketing metadata: {exc}",
+                    })
+                    yield f"data: {err_event}\n\n"
+
+        return _streaming_response(event_stream())
+
+    # ── SEO audit streaming ────────────────────────────────────────
+
+    @router.post("/{idea_id}/generate-stream/seo")
+    async def generate_seo_stream(
+        idea_id: str,
+        _identity: AdminIdentity = Depends(_make_identity_dep(settings)),
+    ) -> StreamingResponse:
+        idea = _get_idea(idea_id)
+        if idea.draft_status != "approved":
+            raise HTTPException(
+                status_code=400,
+                detail="SEO audit requires an approved draft",
+            )
+        if not idea.marketing_metadata:
+            raise HTTPException(
+                status_code=400,
+                detail="SEO audit requires marketing metadata",
+            )
+
+        mcp_servers = _build_mcp_servers(settings)
+
+        async def event_stream():
+            _result_json: str | None = None
+
+            async for event in stream_generate(
+                prompt_name="seo_audit",
+                inputs={
+                    "draft_markdown": idea.draft_markdown or "",
+                    "marketing_metadata": _json.dumps(
+                        idea.marketing_metadata, indent=2
+                    ),
+                },
+                output_schema=SeoAudit,
+                model=settings.llm_model,
+                recorder=None,
+                entity_id=idea_id,
+                entity_type="blog_idea",
+                provider="agents_sdk",
+                mcp_servers=mcp_servers,
+            ):
+                if event.startswith('{"type": "result"'):
+                    _result_json = event
+                yield f"data: {event}\n\n"
+
+            if _result_json is not None:
+                try:
+                    parsed = _json.loads(_result_json)
+                    result = SeoAudit.model_validate(parsed["data"])
+                    repository.set_seo_audit(
+                        idea_id, result.model_dump(), status="pending"
+                    )
+                    saved_event = _json.dumps({
+                        "type": "saved",
+                        "idea_id": idea_id,
+                        "redirect_url": f"/admin/blog-ideas/{idea_id}",
+                    })
+                    yield f"data: {saved_event}\n\n"
+                except Exception as exc:
+                    err_event = _json.dumps({
+                        "type": "error",
+                        "data": f"Failed to save SEO audit: {exc}",
                     })
                     yield f"data: {err_event}\n\n"
 

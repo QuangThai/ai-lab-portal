@@ -125,6 +125,62 @@ class ClaimExtractionResult(BaseModel):
     claims: list[ExtractedClaim] = Field(default_factory=list)
 
 
+class SeoAuditIssue(BaseModel):
+    """A single SEO issue found during audit."""
+
+    severity: str = Field(
+        description="Severity level: critical, major, minor, or info",
+        pattern=r"^(critical|major|minor|info)$",
+    )
+    category: str = Field(
+        description="Category: title, meta_description, headings, keywords, "
+        "readability, internal_links, content_structure, image_alt, or other",
+    )
+    text: str = Field(description="Description of the issue")
+    suggestion: str = Field(description="Suggested fix or improvement")
+
+
+class SeoAudit(BaseModel):
+    """AI SEO audit of a blog draft and its marketing metadata."""
+
+    overall_score: float = Field(
+        ge=0.0, le=100.0,
+        description="Overall SEO score from 0 (poor) to 100 (excellent)",
+    )
+    title_analysis: str = Field(
+        description="Assessment of the SEO title: length, keyword inclusion, "
+        "and clickability"
+    )
+    meta_description_analysis: str = Field(
+        description="Assessment of the meta description: length, keyword usage, "
+        "and call to action"
+    )
+    heading_structure: str = Field(
+        description="Evaluation of heading hierarchy (H1/H2/H3) and keyword "
+        "distribution"
+    )
+    keyword_analysis: str = Field(
+        description="Analysis of target keyword usage, density, and placement "
+        "in the draft"
+    )
+    readability_assessment: str = Field(
+        description="Readability evaluation: sentence length, paragraph "
+        "structure, and reading level"
+    )
+    internal_linking: str = Field(
+        description="Opportunities for internal links to other blog posts, "
+        "showcases, or projects"
+    )
+    issues: list[SeoAuditIssue] = Field(
+        default_factory=list,
+        description="SEO issues found, sorted by severity",
+    )
+    approval_recommendation: str = Field(
+        description="Recommendation: approve, needs_improvement, or fail",
+        pattern=r"^(approve|needs_improvement|fail)$",
+    )
+
+
 class NewsScoring(BaseModel):
     """Structured LLM scoring output for an extracted AI News article."""
 

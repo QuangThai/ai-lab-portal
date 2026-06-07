@@ -864,7 +864,7 @@ class TestStreamingRoutes:
         assert "/admin/blog-ideas/{idea_id}/generate-stream/draft" in stream_routes
         assert "/admin/blog-ideas/{idea_id}/generate-stream/review" in stream_routes
         assert "/admin/blog-ideas/{idea_id}/generate-stream/marketing" in stream_routes
-        assert len(stream_routes) == 5
+        assert len(stream_routes) == 6
 
     def test_streaming_routes_require_auth(self):
         """Streaming endpoints return 401 without admin headers."""
