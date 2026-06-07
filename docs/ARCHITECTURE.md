@@ -25,6 +25,8 @@ Record significant stack changes in `docs/decisions/`.
 ```text
 frontend/          Next.js app (public + admin routes, components, E2E tests)
 backend/           FastAPI app (domain, repositories, routers, Celery tasks)
+backend/mcp_server/  FastMCP server (DB-backed agent tools for Agents SDK)
+backend/app/llm/     LLM abstractions: agents, services, prompts, guardrails, hooks
 scripts/           Harness CLI, proof audits, seed scripts
 docs/              Product spec, stories, architecture, decisions
 docker-compose.yml Local dev stack
