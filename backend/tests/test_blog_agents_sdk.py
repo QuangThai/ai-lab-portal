@@ -501,6 +501,81 @@ class TestMultiAgentReview:
 
 
 # ===========================================================================
+# RecordingLLMService
+# ===========================================================================
+
+
+class TestRecordingLLMService:
+    """Verify the recording wrapper works correctly."""
+
+    def test_recording_creates_ai_run(self):
+        """Recording a completion creates an AiRun entry."""
+        from backend.app.llm.recording import RecordingLLMService
+        from backend.app.llm.service import FakeLLMService
+        from backend.app.ai_runs import AiRunRepository
+        from backend.app.llm.schemas import BlogIdea
+
+        recorder = AiRunRepository()
+        inner = FakeLLMService(responses={
+            "blog_idea": BlogIdea(
+                title="Test", angle="T", target_reader="D", article_goal="G"
+            ),
+        })
+
+        service = RecordingLLMService(
+            inner, recorder,
+            entity_type="test",
+            entity_id="test_1",
+            provider="test",
+            model="test-model",
+        )
+
+        result = service.generate(
+            "blog_idea",
+            inputs={},
+            output_schema=BlogIdea,
+        )
+        assert result is not None
+
+        runs = recorder.list_latest(limit=10)
+        completed = [r for r in runs if r.status == "completed"]
+        assert len(completed) >= 1
+        assert completed[0].entity_type == "test"
+        assert completed[0].model == "test-model"
+
+    def test_recording_failed_run(self):
+        """Recording a failed generation creates a failed AiRun."""
+        from backend.app.llm.recording import RecordingLLMService
+        from backend.app.llm.service import FakeLLMService, LLMGenerationError
+        from backend.app.ai_runs import AiRunRepository
+        from backend.app.llm.schemas import BlogIdea
+
+        recorder = AiRunRepository()
+        inner = FakeLLMService(responses={})  # Empty — will fail
+
+        service = RecordingLLMService(
+            inner, recorder,
+            entity_type="test",
+            entity_id="test_2",
+            provider="test",
+            model="test-model",
+        )
+
+        try:
+            service.generate(
+                "blog_idea",
+                inputs={},
+                output_schema=BlogIdea,
+            )
+        except LLMGenerationError:
+            pass
+
+        runs = recorder.list_latest(limit=10)
+        failed = [r for r in runs if r.status == "failed"]
+        assert len(failed) >= 1
+
+
+# ===========================================================================
 # Internal Links
 # ===========================================================================
 
