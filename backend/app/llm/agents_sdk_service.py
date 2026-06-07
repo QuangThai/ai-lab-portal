@@ -84,7 +84,7 @@ class AgentsSDKLLMService(LLMService):
         self._recorder = recorder
         self._entity_type = entity_type
         self._provider = provider
-        self._mcp_servers = mcp_servers
+        self._mcp_servers = mcp_servers if mcp_servers is not None else []
         # Maps prompt_name -> list of native OutputGuardrail objects
         self._output_guardrails: dict[str, list[OutputGuardrail]] = {}
 
@@ -148,12 +148,12 @@ class AgentsSDKLLMService(LLMService):
             instructions=system,
             model=self._model,
             output_type=output_schema,
-            output_guardrails=prompt_guardrails if prompt_guardrails else None,
+            output_guardrails=prompt_guardrails if prompt_guardrails else [],
             mcp_servers=self._mcp_servers,
         )
 
         # Enable tracing for this run via RunConfig
-        from agents.util import gen_trace_id
+        from agents import gen_trace_id
 
         run_config = RunConfig(
             workflow_name=f"blog_{prompt_name}",
