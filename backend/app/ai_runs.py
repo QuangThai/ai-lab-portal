@@ -112,6 +112,74 @@ class AiRunRepository:
         self._runs[run.id] = run
         return run
 
+    def list_latest(
+        self, limit: int = 50, entity_type: str | None = None
+    ) -> list[AiRun]:
+        """Return the most recent runs, optionally filtered by entity type."""
+        items = self._runs.values()
+        if entity_type:
+            items = [r for r in items if r.entity_type == entity_type]
+        sorted_items = sorted(items, key=lambda r: r.created_at, reverse=True)
+        return sorted_items[:limit]
+
+    def get_stats(
+        self, entity_type: str | None = None
+    ) -> dict[str, Any]:
+        """Compute aggregate stats, optionally filtered by entity type."""
+        runs = list(self._runs.values())
+        if entity_type:
+            runs = [r for r in runs if r.entity_type == entity_type]
+        total = len(runs)
+        completed = sum(1 for r in runs if r.status == "completed")
+        failed = total - completed
+
+        prompt_names = set(r.prompt_name for r in runs)
+
+        completed_runs = [r for r in runs if r.status == "completed"]
+        avg_latency = 0.0
+        avg_tokens = 0.0
+        total_tokens = 0
+        if completed_runs:
+            latencies = [r.latency_ms for r in completed_runs if r.latency_ms is not None]
+            if latencies:
+                avg_latency = sum(latencies) / len(latencies)
+            token_list = [
+                r.total_tokens for r in completed_runs if r.total_tokens is not None
+            ]
+            if token_list:
+                total_tokens = sum(token_list)
+                avg_tokens = total_tokens / len(token_list)
+
+        # Per-stage stats
+        stage_stats: dict[str, dict[str, Any]] = {}
+        for name in sorted(prompt_names):
+            stage_runs = [r for r in completed_runs if r.prompt_name == name]
+            stage_latencies = [
+                r.latency_ms for r in stage_runs if r.latency_ms is not None
+            ]
+            stage_tokens = [r.total_tokens for r in stage_runs if r.total_tokens is not None]
+            stage_stats[name] = {
+                "count": len(stage_runs),
+                "avg_latency_ms": round(sum(stage_latencies) / len(stage_latencies), 1)
+                if stage_latencies
+                else 0,
+                "avg_total_tokens": round(sum(stage_tokens) / len(stage_tokens), 1)
+                if stage_tokens
+                else 0,
+                "total_tokens": sum(stage_tokens),
+            }
+
+        return {
+            "total_runs": total,
+            "completed": completed,
+            "failed": failed,
+            "success_rate": round(completed / total * 100, 1) if total else 0.0,
+            "avg_latency_ms": round(avg_latency, 1),
+            "avg_total_tokens": round(avg_tokens, 1),
+            "total_tokens": total_tokens,
+            "stages": stage_stats,
+        }
+
     def list_for_entity(self, entity_type: str, entity_id: str) -> list[AiRun]:
         items = [
             r
@@ -215,17 +283,98 @@ class PostgresAiRunRepository(AiRunRepository):
             conn.execute(insert(ai_runs_table).values(**data))
         return AiRun(**{**data, "input_payload": input_payload, "output_payload": None})
 
-    def list_for_entity(self, entity_type: str, entity_id: str) -> list[AiRun]:
+    def _execute_select(
+        self, query, limit: int | None = None
+    ) -> list[AiRun]:
+        """Execute a select query and return AiRun objects."""
+        if limit is not None:
+            query = query.limit(limit)
         with self._engine.connect() as conn:
-            rows = conn.execute(
-                select(ai_runs_table)
-                .where(
-                    ai_runs_table.c.entity_type == entity_type,
-                    ai_runs_table.c.entity_id == entity_id,
-                )
-                .order_by(ai_runs_table.c.created_at.desc())
-            ).mappings()
+            rows = conn.execute(query).mappings()
             return [_row_to_run(dict(row)) for row in rows]
+
+    def list_latest(self, limit: int = 50) -> list[AiRun]:
+        return self._execute_select(
+            select(ai_runs_table).order_by(ai_runs_table.c.created_at.desc()),
+            limit=limit,
+        )
+
+    def get_stats(self) -> dict[str, Any]:
+        """Compute aggregate stats via SQL aggregation."""
+        from sqlalchemy import func as sa_func
+
+        with self._engine.connect() as conn:
+            total = conn.execute(
+                select(sa_func.count()).select_from(ai_runs_table)
+            ).scalar() or 0
+
+            completed = conn.execute(
+                select(sa_func.count()).select_from(ai_runs_table).where(
+                    ai_runs_table.c.status == "completed"
+                )
+            ).scalar() or 0
+
+            avg_latency = conn.execute(
+                select(sa_func.avg(ai_runs_table.c.latency_ms)).select_from(
+                    ai_runs_table
+                ).where(ai_runs_table.c.status == "completed")
+            ).scalar() or 0.0
+
+            avg_tokens = conn.execute(
+                select(sa_func.avg(ai_runs_table.c.total_tokens)).select_from(
+                    ai_runs_table
+                ).where(ai_runs_table.c.status == "completed")
+            ).scalar() or 0.0
+
+            total_tokens = conn.execute(
+                select(sa_func.sum(ai_runs_table.c.total_tokens)).select_from(
+                    ai_runs_table
+                ).where(ai_runs_table.c.status == "completed")
+            ).scalar() or 0
+
+            # Per-stage stats
+            stage_rows = conn.execute(
+                select(
+                    ai_runs_table.c.prompt_name,
+                    sa_func.count().label("count"),
+                    sa_func.avg(ai_runs_table.c.latency_ms).label("avg_latency"),
+                    sa_func.avg(ai_runs_table.c.total_tokens).label("avg_tokens"),
+                    sa_func.sum(ai_runs_table.c.total_tokens).label("total_tokens"),
+                )
+                .where(ai_runs_table.c.status == "completed")
+                .group_by(ai_runs_table.c.prompt_name)
+                .order_by(ai_runs_table.c.prompt_name)
+            ).mappings().all()
+
+            stage_stats: dict[str, dict[str, Any]] = {}
+            for row in stage_rows:
+                stage_stats[row["prompt_name"]] = {
+                    "count": row["count"],
+                    "avg_latency_ms": round(row["avg_latency"] or 0, 1),
+                    "avg_total_tokens": round(row["avg_tokens"] or 0, 1),
+                    "total_tokens": row["total_tokens"] or 0,
+                }
+
+        return {
+            "total_runs": total,
+            "completed": completed,
+            "failed": total - completed,
+            "success_rate": round(completed / total * 100, 1) if total else 0.0,
+            "avg_latency_ms": round(avg_latency, 1),
+            "avg_total_tokens": round(avg_tokens, 1),
+            "total_tokens": total_tokens,
+            "stages": stage_stats,
+        }
+
+    def list_for_entity(self, entity_type: str, entity_id: str) -> list[AiRun]:
+        return self._execute_select(
+            select(ai_runs_table)
+            .where(
+                ai_runs_table.c.entity_type == entity_type,
+                ai_runs_table.c.entity_id == entity_id,
+            )
+            .order_by(ai_runs_table.c.created_at.desc())
+        )
 
 
 def _row_to_run(data: dict) -> AiRun:
