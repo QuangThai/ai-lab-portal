@@ -47,7 +47,7 @@ export function StreamingIdeaGenerator({ payload, sourceLabel = "context" }: Pro
       const controller = new AbortController();
       abortRef.current = controller;
 
-      const response = await fetch("/api/admin/blog-ideas/generate-stream", {
+      const response = await fetch("/api/admin/blog-ideas/generate-stream/idea", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
