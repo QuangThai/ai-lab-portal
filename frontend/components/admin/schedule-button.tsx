@@ -48,7 +48,7 @@ export function ScheduleButton({ ideaId, scheduledAt }: Props) {
                 ? new Date(scheduledAt).toISOString().slice(0, 16)
                 : ""
             }
-            min={new Date().toISOString().slice(0, 16)}
+            min={typeof window !== "undefined" ? new Date().toISOString().slice(0, 16) : ""}
             onChange={(e) => schedule(e.target.value)}
           />
           <Button

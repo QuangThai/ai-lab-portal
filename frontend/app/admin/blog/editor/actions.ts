@@ -53,20 +53,24 @@ function normalizeTagName(name: string): string {
 
 async function resolveTags(session: AdminSession, tagNames: string[]): Promise<BlogTag[]> {
   let existing = await listAdminBlogTags(session);
+  const existingMap = new Map(existing.map((tag) => [normalizeTagName(tag.name), tag]));
   const resolved: BlogTag[] = [];
   for (const name of tagNames) {
-    const match = existing.find((tag) => normalizeTagName(tag.name) === normalizeTagName(name));
+    const key = normalizeTagName(name);
+    const match = existingMap.get(key);
     if (match) {
       resolved.push(match);
       continue;
     }
     try {
       const created = await createAdminBlogTag(session, name);
-      existing = [...existing, created];
+      existingMap.set(key, created);
       resolved.push(created);
     } catch {
       existing = await listAdminBlogTags(session);
-      const retry = existing.find((tag) => normalizeTagName(tag.name) === normalizeTagName(name));
+      existingMap.clear();
+      for (const tag of existing) existingMap.set(normalizeTagName(tag.name), tag);
+      const retry = existingMap.get(key);
       if (retry) resolved.push(retry);
     }
   }

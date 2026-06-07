@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useReducer, useRef, useState } from "react";
+import { useActionState, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Globe, History, Pencil, Save, FileText } from "lucide-react";
 
 import { AdminCard, AdminCardBody, AdminCardSection, AdminWorkflowCard } from "@/components/admin/admin-card";
@@ -137,14 +137,18 @@ export function BlogEditor({
   useEffect(() => { contentMarkdownRef.current = contentMarkdown; }, [contentMarkdown]);
   const [revisionPanelOpen, setRevisionPanelOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState(initialImageUrl);
-  const [selectedTags, setSelectedTags] = useState<string[]>(initialTagNames.slice(0, 4));
+  const [selectedTags, setSelectedTags] = useState<string[]>(() => initialTagNames.slice(0, 4));
   const [tagDraft, setTagDraft] = useState("");
 
   const normalizedAvailableTags = Array.from(new Set(availableTagNames)).sort((a, b) => a.localeCompare(b));
-  const tagSuggestions = normalizedAvailableTags
-    .filter((tag) => !selectedTags.some((selected) => selected.toLowerCase() === tag.toLowerCase()))
-    .filter((tag) => tag.toLowerCase().includes(tagDraft.toLowerCase().trim()))
-    .slice(0, 8);
+  const selectedTagLower = useMemo(() => new Set(selectedTags.map((t) => t.toLowerCase())), [selectedTags]);
+  const tagDraftLower = tagDraft.toLowerCase().trim();
+  const tagSuggestions = useMemo(() => {
+    if (!tagDraftLower) return [];
+    return normalizedAvailableTags
+      .filter((tag) => !selectedTagLower.has(tag.toLowerCase()) && tag.toLowerCase().includes(tagDraftLower))
+      .slice(0, 8);
+  }, [normalizedAvailableTags, selectedTagLower, tagDraftLower]);
 
   function addTag(tag: string) {
     const clean = tag.trim();

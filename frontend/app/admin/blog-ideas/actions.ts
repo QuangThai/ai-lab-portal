@@ -538,8 +538,7 @@ export async function resolveGeneratedIdeaAction(taskId: string) {
 
   const jobStartedAt = job.created_at ? Date.parse(job.created_at) : 0;
   const candidates = ideas
-    .filter((idea) => idea.source === "ai_generated")
-    .filter((idea) => !jobStartedAt || Date.parse(idea.created_at) >= jobStartedAt - 5000)
+    .filter((idea) => idea.source === "ai_generated" && (!jobStartedAt || Date.parse(idea.created_at) >= jobStartedAt - 5000))
     .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
 
   return candidates[0]?.id;

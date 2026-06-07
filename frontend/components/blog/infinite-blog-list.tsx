@@ -67,38 +67,41 @@ export function InfiniteBlogList({
   feed = "latest",
   query,
 }: Props) {
-  const resetKey = `${feed}:${tag ?? ""}:${query ?? ""}:${initialPosts.map((post) => post.slug).join(",")}`;
+  // Stable reset key derived only from filter params (not post data)
+  const filterKey = `${feed}:${tag ?? ""}:${query ?? ""}`;
+  const initialKey = useRef(filterKey);
   const [listState, setListState] = useState<ListState>({
     hasMore: initialHasMore,
     page: 1,
     posts: initialPosts,
-    resetKey,
+    resetKey: filterKey,
   });
   const [isPending, startTransition] = useTransition();
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const inFlightRef = useRef(false);
+  const loadingRef = useRef(false);
 
-  if (listState.resetKey !== resetKey) {
+  // Reset when filters change, only once per filter change
+  if (filterKey !== initialKey.current) {
+    initialKey.current = filterKey;
     setListState({
       hasMore: initialHasMore,
       page: 1,
       posts: initialPosts,
-      resetKey,
+      resetKey: filterKey,
     });
   }
 
-  const { hasMore, page, posts } =
-    listState.resetKey === resetKey
-      ? listState
-      : { hasMore: initialHasMore, page: 1, posts: initialPosts };
+  const { hasMore, page, posts } = listState;
 
   useEffect(() => {
     inFlightRef.current = false;
-  }, [resetKey]);
+  }, [filterKey]);
 
   useEffect(() => {
+    if (!hasMore) return;
     const sentinel = sentinelRef.current;
-    if (!sentinel || !hasMore) return;
+    if (!sentinel) return;
 
     const observer = new IntersectionObserver(
       ([entry]) => {

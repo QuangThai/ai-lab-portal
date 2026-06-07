@@ -61,9 +61,23 @@ function isHtmlContent(content: string): boolean {
 }
 
 /** Render comment content safely — TipTap HTML or legacy plain text */
+function sanitizeHtml(html: string): string {
+  // Strip all HTML tags except a safe subset
+  return html
+    .replace(/<script[^>]*>[^<]*<\/script>/gi, "")
+    .replace(/<\/?[^>]+(>|$)/g, (match) => {
+      const tag = match.replace(/<\/?|>/g, "").split(/\s+/)[0].toLowerCase();
+      const safeTags = new Set(["b", "i", "em", "strong", "a", "code", "pre", "p", "br", "ul", "ol", "li", "blockquote"]);
+      if (safeTags.has(tag) || match.startsWith("</")) return match;
+      return "";
+    })
+    .replace(/<a\s+(?:[^>]*?\s+)?href\s*=\s*"?(?!https?:\/\/|\/|#)([^"]*)"?[^>]*>/gi, "<a href=\"#\">");
+}
+
 function renderCommentContent(content: string): string {
   if (!content) return "";
-  if (isHtmlContent(content)) return content;
+  const sanitized = sanitizeHtml(content);
+  if (isHtmlContent(sanitized)) return sanitized;
   // Legacy plain text: escape and wrap in paragraphs
   const escaped = content
     .replace(/&/g, "&amp;")

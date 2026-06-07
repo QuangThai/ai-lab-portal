@@ -18,18 +18,21 @@ export function PublicBookmarkButton({ slug }: PublicBookmarkButtonProps) {
 
   // Re-fetch bookmark state on navigation (e.g. after bookmarking on detail page)
   useEffect(() => {
+    let cancelled = false;
     fetch("/api/auth/get-session")
       .then((r) => r.json())
       .then((data) => {
+        if (cancelled) return;
         setIsAuthenticated(!!data?.user);
         if (data?.user) {
           fetch(`/api/bookmarks/check/${slug}`)
             .then((r) => r.json())
-            .then((bData) => setIsBookmarked(!!bData))
+            .then((bData) => { if (!cancelled) setIsBookmarked(!!bData); })
             .catch(() => {});
         }
       })
-      .catch(() => setIsAuthenticated(false));
+      .catch(() => { if (!cancelled) setIsAuthenticated(false); });
+    return () => { cancelled = true; };
   }, [slug, pathname]); // pathname dependency: re-fetch on page navigation
 
   const handleToggle = useCallback(async () => {

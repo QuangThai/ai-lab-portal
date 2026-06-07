@@ -1,4 +1,4 @@
-import { headers } from "next/headers";
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BookOpen, ChevronLeft } from "lucide-react";
@@ -7,6 +7,26 @@ import { PublicPageShell } from "@/components/public/public-page-shell";
 import { PublicProse } from "@/components/public/public-prose";
 
 const backendBaseUrl = process.env.BACKEND_INTERNAL_URL ?? "http://127.0.0.1:18000";
+
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  try {
+    const res = await fetch(`${backendBaseUrl}/public/blog-series/${slug}`, { cache: "no-store" });
+    if (res.ok) {
+      const series = await res.json();
+      return {
+        title: `${series.title} — Blog Series`,
+        description: series.description || `A multi-part blog series: ${series.title}`,
+        openGraph: {
+          title: `${series.title} — Blog Series`,
+          description: series.description || undefined,
+          type: "website",
+        },
+      };
+    }
+  } catch { /* ignore */ }
+  return { title: "Blog Series" };
+}
 
 type SeriesPost = {
   part_number: number;
@@ -45,8 +65,8 @@ export default async function BlogSeriesPage({
   const series = await fetchSeries(slug);
   if (!series) notFound();
 
-  const sortedPosts = [...(series.posts || [])].sort(
-    (a, b) => a.part_number - b.part_number,
+  const sortedPosts = (series.posts || []).toSorted(
+    (a: { part_number: number }, b: { part_number: number }) => a.part_number - b.part_number,
   );
 
   return (

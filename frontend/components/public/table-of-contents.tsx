@@ -71,22 +71,21 @@ export function TableOfContents({ contentSelector }: { contentSelector: string }
       <ul className="space-y-1.5">
         {items.map((item) => (
           <li key={item.id}>
-            <a
-              href={`#${item.id}`}
+            <button
+              type="button"
               className={cn(
-                "block text-xs leading-snug py-0.5 transition-colors border-l-2 pl-3",
+                "block w-full text-left text-xs leading-snug py-0.5 transition-colors border-l-2 pl-3 bg-transparent",
                 activeId === item.id
                   ? "text-brand border-brand font-medium"
                   : "text-muted-foreground border-transparent hover:text-foreground hover:border-border",
               )}
               style={{ paddingLeft: `${0.75 + (item.level - 2) * 0.75}rem` }}
-              onClick={(e) => {
-                e.preventDefault();
+              onClick={() => {
                 document.getElementById(item.id)?.scrollIntoView({ behavior: "smooth" });
               }}
             >
               {item.text}
-            </a>
+            </button>
           </li>
         ))}
       </ul>

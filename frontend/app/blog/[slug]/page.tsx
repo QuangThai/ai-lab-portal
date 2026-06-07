@@ -22,7 +22,6 @@ import { getPublishedBlogPost, listPublishedBlogPosts } from "@/lib/blog/posts";
 import { getSocialStats, listComments } from "@/lib/blog/social";
 import { listPublicPostTags } from "@/lib/blog/tags";
 import { BookOpen, ChevronLeft, ChevronRight } from "lucide-react";
-import Link from "next/link";
 
 import { auth } from "@/lib/auth/server";
 import { createPublicMetadata } from "@/lib/seo/metadata";

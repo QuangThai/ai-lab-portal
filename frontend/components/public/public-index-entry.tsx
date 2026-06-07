@@ -58,6 +58,7 @@ export function PublicIndexEntry({
                 alt=""
                 className="object-cover transition-transform duration-500 group-hover:scale-[1.03]"
                 fill
+                sizes="(max-width: 640px) 100vw, 160px"
                 loading="lazy"
                 src={imageUrl}
                 unoptimized

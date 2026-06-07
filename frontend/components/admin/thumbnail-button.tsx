@@ -64,6 +64,7 @@ export function ThumbnailButton({ ideaId, title }: Props) {
             src={imageUrl}
             alt={`Thumbnail for ${title}`}
             fill
+            sizes="384px"
             className="object-cover"
             unoptimized
           />

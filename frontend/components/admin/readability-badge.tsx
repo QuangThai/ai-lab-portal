@@ -10,11 +10,11 @@ import { cn } from "@/lib/utils";
 function syllableCount(word: string): number {
   const w = word.toLowerCase().replace(/[^a-z]/g, "");
   if (!w) return 0;
-  const vowels = "aeiouy";
+  const vowels = new Set(["a", "e", "i", "o", "u", "y"]);
   let count = 0;
   let prevVowel = false;
   for (const ch of w) {
-    const isVowel = vowels.includes(ch);
+    const isVowel = vowels.has(ch);
     if (isVowel && !prevVowel) count++;
     prevVowel = isVowel;
   }
