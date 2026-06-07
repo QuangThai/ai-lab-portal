@@ -30,4 +30,4 @@ playwright-report/
 scripts/bin/harness-cli
 scripts/bin/harness-cli.exe
 
-.pi
+.pi*.py,cover
