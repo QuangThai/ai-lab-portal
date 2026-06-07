@@ -1,4 +1,6 @@
 import type { ComponentProps } from "react";
+import { useState } from "react";
+import { Copy, Check, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -62,10 +64,65 @@ const highlightStyles = {
   },
 };
 
+function ImageLightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Image preview"
+    >
+      <button
+        type="button"
+        className="absolute right-4 top-4 rounded-full bg-black/50 p-2 text-white transition-colors hover:bg-black/70"
+        onClick={onClose}
+        aria-label="Close preview"
+      >
+        <X className="h-5 w-5" />
+      </button>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        className="max-h-[90vh] max-w-[90vw] rounded-lg object-contain shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <button
+      type="button"
+      className="absolute right-2 top-2 rounded-md bg-white/10 p-1.5 text-white/60 opacity-0 transition-all hover:bg-white/20 hover:text-white/90 group-hover/pre:opacity-100"
+      onClick={async () => {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      }}
+      aria-label="Copy code"
+    >
+      {copied ? <Check className="h-3.5 w-3.5 text-green-400" /> : <Copy className="h-3.5 w-3.5" />}
+    </button>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────
+
+
 export function MarkdownContent({ className, markdown }: MarkdownContentProps) {
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+
   if (!markdown.trim()) {
     return null;
   }
+
+  // Extract code content for copy buttons
+  let codeBlockCounter = 0;
 
   return (
     <div
@@ -95,14 +152,22 @@ export function MarkdownContent({ className, markdown }: MarkdownContentProps) {
 
             return (
               // eslint-disable-next-line @next/next/no-img-element
-              <img
-                loading="lazy"
-                decoding="async"
-                alt={alt ?? ""}
-                title={title}
-                src={resolvedSrc}
-                {...rest}
-              />
+              <button
+                type="button"
+                className="cursor-zoom-in border-0 bg-transparent p-0"
+                onClick={() => setLightboxSrc(resolvedSrc!)}
+                aria-label="Zoom image"
+              >
+                <img
+                  loading="lazy"
+                  decoding="async"
+                  alt={alt ?? ""}
+                  title={title}
+                  src={resolvedSrc}
+                  className="rounded-xl border border-border/50 shadow-sm transition-transform hover:scale-[1.02]"
+                  {...rest}
+                />
+              </button>
             );
           },
           // Render task list items as styled checkboxes (like the editor)
@@ -140,14 +205,44 @@ export function MarkdownContent({ className, markdown }: MarkdownContentProps) {
               </code>
             );
           },
-          // Style pre blocks
-          pre: (props: ComponentProps<"pre"> & { node?: unknown }) => {
-            return <pre {...props} />;
+          // Style pre blocks — add copy button
+          pre: ({ children, ...props }: ComponentProps<"pre"> & { node?: unknown }) => {
+            codeBlockCounter++;
+            // Extract text content from children for copy
+            let codeText = "";
+            try {
+              const childArr = Array.isArray(children) ? children : [children];
+              for (const child of childArr) {
+                if (typeof child === "string") codeText += child;
+                else if (child && typeof child === "object" && "props" in child) {
+                  const grandChildren = (child as { props?: { children?: unknown } }).props?.children;
+                  if (typeof grandChildren === "string") codeText += grandChildren;
+                }
+              }
+            } catch {
+              // ignore
+            }
+
+            return (
+              <div className="group/pre relative">
+                <pre {...props}>{children}</pre>
+                <CopyButton text={codeText} />
+              </div>
+            );
           },
         }}
       >
         {markdown}
       </ReactMarkdown>
+
+      {/* Image lightbox */}
+      {lightboxSrc && (
+        <ImageLightbox
+          src={lightboxSrc}
+          alt=""
+          onClose={() => setLightboxSrc(null)}
+        />
+      )}
     </div>
   );
 }

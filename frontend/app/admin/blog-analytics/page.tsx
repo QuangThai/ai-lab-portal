@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { Activity, BarChart3, Eye, TrendingUp, Users } from "lucide-react";
+import { Activity, Eye, TrendingUp, Users } from "lucide-react";
 
 import { AdminDashboardHeader } from "@/components/admin/admin-dashboard-header";
 import { adminPageStackClass } from "@/components/admin/admin-ui";
@@ -56,9 +56,9 @@ export default async function BlogAnalyticsPage() {
   return (
     <div className={adminPageStackClass}>
       <AdminDashboardHeader
-        icon={BarChart3}
         title="Blog Analytics"
         description="Content performance metrics and reader engagement."
+        email={session.user.email}
       />
 
       {/* Stat cards */}
@@ -104,7 +104,7 @@ export default async function BlogAnalyticsPage() {
       {/* Period breakdown */}
       <div className="rounded-lg border bg-card p-6 text-card-foreground shadow-sm">
         <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold">
-          <BarChart3 className="h-4 w-4" />
+          <Activity className="h-4 w-4" />
           Period breakdown
         </h3>
         <div className="grid gap-4 sm:grid-cols-3">
