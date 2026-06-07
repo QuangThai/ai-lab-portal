@@ -501,6 +501,87 @@ class TestMultiAgentReview:
 
 
 # ===========================================================================
+# Internal Links
+# ===========================================================================
+
+
+class TestInternalLinks:
+    """Verify the internal link suggestion engine."""
+
+    def test_keyword_extraction(self):
+        """Keywords are extracted from draft text."""
+        from backend.app.llm.internal_links import _extract_keywords
+
+        text = "This article discusses machine learning and artificial intelligence " \
+               "for software engineering teams building intelligent applications."
+        keywords = _extract_keywords(text, max_keywords=3)
+        assert len(keywords) >= 1
+        assert all(isinstance(k, str) for k in keywords)
+
+    def test_suggest_empty_for_no_draft(self):
+        """Returns empty list when idea has no draft."""
+        from backend.app.llm.internal_links import suggest_internal_links
+        from backend.app.blog_ideas import (
+            BlogIdeaCreate,
+            BlogIdeaRepository,
+        )
+        from backend.app.blog import BlogRepository
+
+        idea_repo = BlogIdeaRepository()
+        blog_repo = BlogRepository()
+        idea = idea_repo.create(
+            BlogIdeaCreate(
+                title="Test", angle="Test",
+                target_reader="Dev", article_goal="Test",
+            )
+        )
+        result = suggest_internal_links(idea.id, idea_repo, blog_repo)
+        assert result == []
+
+    def test_suggest_finds_matching_posts(self):
+        """Returns suggestions when keywords match published posts."""
+        from backend.app.llm.internal_links import suggest_internal_links
+        from backend.app.blog_ideas import (
+            BlogIdeaCreate,
+            BlogIdeaRepository,
+        )
+        from backend.app.blog import BlogPostCreate, BlogRepository
+        from datetime import UTC, datetime
+
+        idea_repo = BlogIdeaRepository()
+        blog_repo = BlogRepository()
+
+        # Seed a published post
+        post = blog_repo.create(
+            BlogPostCreate(
+                slug="ai-agents-guide",
+                title="AI Agents Guide",
+                excerpt="A guide to AI agents",
+                author_name="Tester",
+                content_markdown="# AI Agents",
+            )
+        )
+        blog_repo.publish(post.id)
+
+        # Seed idea with draft mentioning AI agents
+        idea = idea_repo.create(
+            BlogIdeaCreate(
+                title="Building AI Agents",
+                angle="How to build agents",
+                target_reader="Developers",
+                article_goal="Teach agent building",
+            )
+        )
+        idea.draft_markdown = "This article explores AI agents and how to " \
+                              "build them effectively in production."
+        idea_repo._ideas[idea.id] = idea  # type: ignore[attr-defined]
+
+        suggestions = suggest_internal_links(idea.id, idea_repo, blog_repo)
+        assert len(suggestions) >= 1
+        assert suggestions[0].slug == "ai-agents-guide"
+
+
+# ===========================================================================
 # Readability
 # ===========================================================================
 

@@ -1081,6 +1081,23 @@ def create_blog_idea_routes(
             return []
         return claims_repository.list_for_idea(idea_id)
 
+    @router.get("/{idea_id}/suggest-links")
+    async def suggest_links(
+        idea_id: str,
+        _identity: AdminIdentity = Depends(require_identity),
+    ) -> list[dict]:
+        """Suggest internal links from published posts for this idea's draft."""
+        from backend.app.blog import BlogRepository
+        from backend.app.llm.internal_links import suggest_internal_links
+
+        blog_repo = BlogRepository()
+        suggestions = suggest_internal_links(
+            idea_id,
+            idea_repo=repository,
+            blog_repo=blog_repo,
+        )
+        return [s.model_dump() for s in suggestions]
+
     @router.post("/{idea_id}/run-next")
     async def run_next(
         idea_id: str,

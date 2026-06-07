@@ -175,3 +175,11 @@ class ReadabilityScore(BaseModel):
         default_factory=list,
         description="Suggestions to improve readability",
     )
+
+
+class InternalLinkSuggestion(BaseModel):
+    """A suggested internal link to an existing blog post."""
+
+    title: str = Field(description="Title of the suggested post")
+    slug: str = Field(description="URL slug of the suggested post")
+    reason: str = Field(description="Why this link is relevant")

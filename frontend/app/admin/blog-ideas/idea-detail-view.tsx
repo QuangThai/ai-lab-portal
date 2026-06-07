@@ -37,6 +37,7 @@ import { PipelineStepNav } from "./pipeline-step-nav";
 import { PipelineStepShell, stepShellState } from "./pipeline-step-shell";
 import { StageStreamButton } from "@/components/admin/stage-stream-button";
 import { ReadabilityBadge } from "@/components/admin/readability-badge";
+import { InternalLinks } from "@/components/admin/internal-links";
 
 // ─── Types ───────────────────────────────────────────────────────
 
@@ -439,6 +440,7 @@ export function BlogIdeaDetailView({ idea, claims = [], aiRuns = [], operational
                   {idea.draft_markdown.split(/\s+/).filter(Boolean).length.toLocaleString()} words
                 </span>
                 <ReadabilityBadge text={idea.draft_markdown} />
+                <InternalLinks ideaId={idea.id} enabled={!!idea.draft_markdown} />
               </div>
             ) : null}
             {idea.draft_status === "rejected" && idea.outline_status === "approved" ? (
