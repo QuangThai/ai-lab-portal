@@ -16,7 +16,7 @@ def test_alembic_head_includes_user_follows() -> None:
     config.set_main_option("script_location", _migrations_dir())
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_current_head() == "20260604_0032"
+    assert script.get_current_head() == "20260606_0034"
     revisions = {rev.revision for rev in script.walk_revisions()}
     assert "20260602_0002" in revisions
     assert "20260602_0005" in revisions

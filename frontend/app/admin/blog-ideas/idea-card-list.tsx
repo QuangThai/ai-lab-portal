@@ -117,7 +117,7 @@ export function BlogIdeaCardList({
             className={cn(adminListRowClass, "group")}
           >
             <div>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:flex-wrap">
                 {/* Left: Content */}
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">

@@ -31,6 +31,7 @@ class AiRun(BaseModel):
     prompt_tokens: int | None = None
     completion_tokens: int | None = None
     total_tokens: int | None = None
+    trace_id: str | None = None
     latency_ms: int | None = None
     created_at: datetime
 
@@ -53,6 +54,7 @@ class AiRunRepository:
         completion_tokens: int | None = None,
         total_tokens: int | None = None,
         latency_ms: int | None = None,
+        trace_id: str | None = None,
     ) -> AiRun:
         prompt = PROMPT_REGISTRY.get(prompt_name)
         version = prompt.version if prompt is not None else "0"
@@ -71,6 +73,7 @@ class AiRunRepository:
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
             latency_ms=latency_ms,
+            trace_id=trace_id,
             created_at=datetime.now(UTC),
         )
         self._runs[run.id] = run
@@ -87,6 +90,7 @@ class AiRunRepository:
         input_payload: dict[str, Any],
         error_message: str,
         latency_ms: int | None = None,
+        trace_id: str | None = None,
     ) -> AiRun:
         prompt = PROMPT_REGISTRY.get(prompt_name)
         version = prompt.version if prompt is not None else "0"
@@ -102,6 +106,7 @@ class AiRunRepository:
             input_payload=input_payload,
             error_message=error_message[:2000],
             latency_ms=latency_ms,
+            trace_id=trace_id,
             created_at=datetime.now(UTC),
         )
         self._runs[run.id] = run
@@ -135,6 +140,7 @@ class PostgresAiRunRepository(AiRunRepository):
         completion_tokens: int | None = None,
         total_tokens: int | None = None,
         latency_ms: int | None = None,
+        trace_id: str | None = None,
     ) -> AiRun:
         prompt = PROMPT_REGISTRY.get(prompt_name)
         version = prompt.version if prompt is not None else "0"
@@ -156,6 +162,7 @@ class PostgresAiRunRepository(AiRunRepository):
             "completion_tokens": completion_tokens,
             "total_tokens": total_tokens,
             "latency_ms": latency_ms,
+            "trace_id": trace_id,
             "created_at": now,
         }
         with self._engine.begin() as conn:
@@ -179,6 +186,7 @@ class PostgresAiRunRepository(AiRunRepository):
         input_payload: dict[str, Any],
         error_message: str,
         latency_ms: int | None = None,
+        trace_id: str | None = None,
     ) -> AiRun:
         prompt = PROMPT_REGISTRY.get(prompt_name)
         version = prompt.version if prompt is not None else "0"
@@ -200,6 +208,7 @@ class PostgresAiRunRepository(AiRunRepository):
             "completion_tokens": None,
             "total_tokens": None,
             "latency_ms": latency_ms,
+            "trace_id": trace_id,
             "created_at": now,
         }
         with self._engine.begin() as conn:

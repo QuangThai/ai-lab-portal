@@ -527,3 +527,194 @@ class TestOutlineWorkflow:
             json={},
         )
         assert response.status_code == 404
+
+
+# ===========================================================================
+# /run-next unified endpoint (US-093)
+# ===========================================================================
+
+
+class TestRunNext:
+    """Tests for the unified /run-next pipeline advancement endpoint (US-093).
+
+    These tests verify state transitions and error handling. Inline Celery
+    task execution is tested separately in test_tasks.py / E2E tests.
+    """
+
+    def test_idea_not_found(self) -> None:
+        app = create_app(settings=_test_settings())
+        client = TestClient(app)
+        response = client.post(
+            "/admin/blog-ideas/missing/run-next",
+            headers=_admin_headers(),
+        )
+        assert response.status_code == 404
+
+    def test_rejected_idea_returns_blocked(self) -> None:
+        app = create_app(settings=_test_settings())
+        client = TestClient(app)
+
+        created = client.post(
+            "/admin/blog-ideas",
+            headers=_admin_headers(),
+            json={
+                "title": "Rejected Idea",
+                "angle": "Test",
+                "target_reader": "Devs",
+                "article_goal": "Test",
+            },
+        ).json()
+
+        client.patch(
+            f"/admin/blog-ideas/{created['id']}",
+            headers=_admin_headers(),
+            json={"status": "rejected"},
+        )
+
+        response = client.post(
+            f"/admin/blog-ideas/{created['id']}/run-next",
+            headers=_admin_headers(),
+        )
+        assert response.status_code == 200
+        assert response.json()["action"] == "blocked"
+
+    def test_already_published_returns_done(self) -> None:
+        """Published ideas return action=done."""
+        from backend.app.blog_ideas import (
+            BlogIdeaCreate,
+            BlogIdeaRepository,
+            BlogIdeaUpdate,
+            OutlineSection,
+        )
+        from backend.app.blog import BlogRepository
+        from backend.app.blog_publish import publish_idea_to_blog
+
+        ideas_repo = BlogIdeaRepository()
+        idea = ideas_repo.create(
+            BlogIdeaCreate(
+                title="Published Idea",
+                angle="Test",
+                target_reader="Devs",
+                article_goal="Test",
+            )
+        )
+        ideas_repo.update(idea.id, BlogIdeaUpdate(status="approved"))
+        ideas_repo.set_outline(
+            idea.id, [OutlineSection(section="X", points=["Y"])], status="approved"
+        )
+        ideas_repo.set_draft(idea.id, "# Published", status="approved")
+        ideas_repo.set_technical_review(
+            idea.id,
+            {
+                "overall_risk": "low",
+                "issues": [],
+                "approval_recommendation": "approve",
+            },
+            status="approved",
+        )
+        ideas_repo.set_marketing_metadata(
+            idea.id,
+            {
+                "seo_title": "SEO",
+                "meta_description": "Desc",
+                "excerpt": "Exc",
+                "linkedin_post": "LI",
+                "x_post": "X",
+                "cta": "CTA",
+            },
+            status="approved",
+        )
+        blog_repo = BlogRepository(posts=[])
+        publish_idea_to_blog(idea.id, ideas_repo, blog_repo)
+
+        app = create_app(
+            settings=_test_settings(),
+            blog_idea_repository=ideas_repo,
+            blog_repository=blog_repo,
+        )
+        client = TestClient(app)
+        response = client.post(
+            f"/admin/blog-ideas/{idea.id}/run-next",
+            headers=_admin_headers(),
+        )
+        assert response.status_code == 200
+        assert response.json()["action"] == "done"
+
+    def test_run_next_missing_auth(self) -> None:
+        """run-next requires admin authentication."""
+        app = create_app(settings=_test_settings())
+        client = TestClient(app)
+        response = client.post("/admin/blog-ideas/test/run-next")
+        assert response.status_code == 401
+
+    def test_rejected_idea_returns_blocked(self) -> None:
+        app = create_app(settings=_test_settings())
+        client = TestClient(app)
+
+        created = client.post(
+            "/admin/blog-ideas",
+            headers=_admin_headers(),
+            json={
+                "title": "Rejected Idea",
+                "angle": "Test",
+                "target_reader": "Devs",
+                "article_goal": "Test",
+            },
+        ).json()
+
+        client.patch(
+            f"/admin/blog-ideas/{created['id']}",
+            headers=_admin_headers(),
+            json={"status": "rejected"},
+        )
+
+        response = client.post(
+            f"/admin/blog-ideas/{created['id']}/run-next",
+            headers=_admin_headers(),
+        )
+        assert response.status_code == 200
+        assert response.json()["action"] == "blocked"
+
+    def test_already_published_returns_done(self) -> None:
+        """Published ideas return action=done."""
+        from backend.app.blog_ideas import BlogIdeaRepository, BlogIdeaUpdate, OutlineSection
+        from backend.app.blog import BlogRepository
+        from backend.app.blog_publish import publish_idea_to_blog
+        from backend.app.settings import Settings
+
+        ideas_repo = BlogIdeaRepository()
+        idea = ideas_repo.create(
+            BlogIdeaCreate(
+                title="Published Idea", angle="Test", target_reader="Devs", article_goal="Test"
+            )
+        )
+        ideas_repo.update(idea.id, BlogIdeaUpdate(status="approved"))
+        ideas_repo.set_outline(idea.id, [OutlineSection(section="X", points=["Y"])], status="approved")
+        ideas_repo.set_draft(idea.id, "# Published", status="approved")
+        ideas_repo.set_technical_review(
+            idea.id, {"overall_risk": "low", "issues": [], "approval_recommendation": "approve"},
+            status="approved",
+        )
+        ideas_repo.set_marketing_metadata(
+            idea.id,
+            {
+                "seo_title": "SEO", "meta_description": "Desc", "excerpt": "Exc",
+                "linkedin_post": "LI", "x_post": "X", "cta": "CTA",
+            },
+            status="approved",
+        )
+        blog_repo = BlogRepository(posts=[])
+        publish_idea_to_blog(idea.id, ideas_repo, blog_repo)
+
+        app = create_app(
+            settings=Settings(environment="test", admin_boundary_secret=TEST_SECRET),
+            blog_idea_repository=ideas_repo,
+            blog_repository=blog_repo,
+        )
+        client = TestClient(app)
+        response = client.post(
+            f"/admin/blog-ideas/{idea.id}/run-next",
+            headers=_admin_headers(),
+        )
+        assert response.status_code == 200
+        assert response.json()["action"] == "done"

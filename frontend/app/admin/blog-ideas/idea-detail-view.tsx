@@ -18,6 +18,7 @@ import {
   Send,
   ExternalLink,
   Loader2,
+  Activity,
 } from "lucide-react";
 
 import { AdminBackLink } from "@/components/admin/admin-back-link";
@@ -85,6 +86,22 @@ export type BlogIdeaDetail = {
   published_blog_post_id: string | null;
   created_at: string;
   updated_at: string;
+};
+
+export type AiRunItem = {
+  id: string;
+  prompt_name: string;
+  prompt_version: string;
+  status: "completed" | "failed";
+  provider: string;
+  model: string;
+  prompt_tokens: number | null;
+  completion_tokens: number | null;
+  total_tokens: number | null;
+  latency_ms: number | null;
+  error_message: string | null;
+  trace_id: string | null;
+  created_at: string;
 };
 
 export type BlogClaimItem = {
@@ -178,11 +195,12 @@ type OperationalStatus = {
 type Props = {
   idea: BlogIdeaDetail;
   claims?: BlogClaimItem[];
+  aiRuns?: AiRunItem[];
   operationalStatus?: OperationalStatus;
   actions: Actions;
 };
 
-export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actions }: Props) {
+export function BlogIdeaDetailView({ idea, claims = [], aiRuns = [], operationalStatus, actions }: Props) {
   const nextAction = getPipelineNextAction(idea, claims.length, operationalStatus);
   const showOpBanner =
     Boolean(operationalStatus?.message) && operationalStatus?.opStatus !== "queued";
@@ -239,7 +257,7 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
       <div className="grid items-start gap-6 lg:grid-cols-[13.5rem_minmax(0,1fr)] xl:grid-cols-[15rem_minmax(0,1fr)]">
         <PipelineStepNav idea={idea} nextAction={nextAction} />
 
-        <div className="grid gap-4">
+        <div className="grid gap-4 min-w-0">
           <PipelineStepShell
             stepNumber={1}
             title="Idea"
@@ -271,7 +289,7 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
                   {idea.positioning_notes.map((note, i) => (
                     <li
                       key={`note-${note.slice(0, 24)}-${i}`}
-                      className="text-sm leading-snug text-foreground"
+                      className="text-sm leading-snug text-foreground [overflow-wrap:anywhere]"
                     >
                       {note}
                     </li>
@@ -280,7 +298,7 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
               </div>
             ) : null}
             {idea.feedback ? (
-              <p className="mt-4 text-sm italic text-muted-foreground">{idea.feedback}</p>
+              <p className="mt-4 text-sm italic text-muted-foreground [overflow-wrap:anywhere]">{idea.feedback}</p>
             ) : null}
           </PipelineStepShell>
 
@@ -347,7 +365,7 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
                     {section.points.map((point, j) => (
                       <li
                         key={`${section.section}-point-${j}`}
-                        className="text-sm leading-snug text-muted-foreground"
+                        className="text-sm leading-snug text-muted-foreground [overflow-wrap:anywhere]"
                       >
                         {point}
                       </li>
@@ -410,7 +428,7 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
                 label="Regenerate draft"
               />
             ) : null}
-            <div className="max-h-[32rem] overflow-y-auto rounded-lg border border-border/70 bg-muted/20 p-5">
+            <div className="max-h-[32rem] overflow-y-auto overflow-x-auto rounded-lg border border-border/70 bg-muted/20 p-5">
               {idea.draft_markdown.split("\n").map((line, i) => {
                 if (line.startsWith("## ")) {
                   return (
@@ -589,19 +607,19 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
                         </div>
                       </div>
                       <div className="mt-3 grid gap-2">
-                        <p className="text-sm leading-snug text-foreground">
+                        <p className="text-sm leading-snug text-foreground [overflow-wrap:anywhere]">
                           <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
                             Text:
                           </span>{" "}
                           {issue.text}
                         </p>
-                        <p className="text-sm leading-snug text-muted-foreground">
+                        <p className="text-sm leading-snug text-muted-foreground [overflow-wrap:anywhere]">
                           <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
                             Issue:
                           </span>{" "}
                           {issue.reason}
                         </p>
-                        <p className="text-sm leading-snug italic text-brand">
+                        <p className="text-sm leading-snug italic text-brand [overflow-wrap:anywhere]">
                           <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-muted-foreground not-italic">
                             Suggestion:
                           </span>{" "}
@@ -788,6 +806,78 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
           <EmptyState message="Approve marketing metadata to enable publishing to the blog." />
         )}
           </PipelineStepShell>
+
+          {/* US-097: Observability — AI run history */}
+          {aiRuns.length > 0 ? (
+            <div className="rounded-xl border border-border/60">
+              <div className="flex items-center gap-2 border-b border-border/40 px-5 py-3">
+                <Activity className="size-4 text-muted-foreground" aria-hidden />
+                <h2 className="text-sm font-semibold">AI Runs</h2>
+                <span className="ml-auto text-[11px] text-muted-foreground">
+                  {aiRuns.length} run{aiRuns.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full table-fixed text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-border/30 text-muted-foreground">
+                      <th className="w-[40%] px-5 py-2.5 font-medium">Prompt</th>
+                      <th className="w-[15%] px-3 py-2.5 font-medium">Status</th>
+                      <th className="w-[15%] px-3 py-2.5 font-medium">Tokens</th>
+                      <th className="w-[15%] px-3 py-2.5 font-medium">Latency</th>
+                      <th className="w-[15%] px-3 py-2.5 font-medium">Created</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aiRuns.map((run) => (
+                      <tr
+                        key={run.id}
+                        className="border-b border-border/20 last:border-0 hover:bg-muted/30"
+                      >
+                        <td className="px-5 py-2.5 font-medium">
+                          {run.prompt_name}
+                          <span className="ml-1.5 text-[10px] text-muted-foreground">
+                            v{run.prompt_version}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {run.status === "completed" ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                              <CheckCircle className="size-3" />
+                              OK
+                            </span>
+                          ) : (
+                            <span
+                              className="inline-flex items-center gap-1 text-red-600 dark:text-red-400"
+                              title={run.error_message ?? undefined}
+                            >
+                              <XCircle className="size-3" />
+                              Failed
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5 text-muted-foreground">
+                          {run.total_tokens != null
+                            ? run.total_tokens.toLocaleString()
+                            : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-muted-foreground">
+                          {run.latency_ms != null
+                            ? run.latency_ms < 1000
+                              ? `${run.latency_ms}ms`
+                              : `${(run.latency_ms / 1000).toFixed(1)}s`
+                            : "—"}
+                        </td>
+                        <td className="px-3 py-2.5 text-muted-foreground">
+                          {new Date(run.created_at).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -798,9 +888,9 @@ export function BlogIdeaDetailView({ idea, claims = [], operationalStatus, actio
 
 function MetaField({ label, value }: { label: string; value: string }) {
   return (
-    <div>
+    <div className="min-w-0">
       <p className="text-xs font-medium text-muted-foreground">{label}</p>
-      <p className="mt-1.5 text-sm leading-snug text-foreground">{value}</p>
+      <p className="mt-1.5 text-sm leading-snug text-foreground [overflow-wrap:anywhere]">{value}</p>
     </div>
   );
 }

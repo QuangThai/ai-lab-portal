@@ -104,11 +104,12 @@ class NewsSourceRepository:
         self._sources[source_id] = updated
         return updated
 
-    def list_due_rss(self, *, now: datetime | None = None) -> list[NewsSource]:
+    def list_due_by_type(self, source_type: str, *, now: datetime | None = None) -> list[NewsSource]:
+        """List enabled sources of a given type that are due for crawl."""
         moment = now or datetime.now(UTC)
         due: list[NewsSource] = []
         for source in self._sources.values():
-            if not source.is_enabled or source.source_type != "rss":
+            if not source.is_enabled or source.source_type != source_type:
                 continue
             if source.last_crawled_at is None:
                 due.append(source)
@@ -116,6 +117,12 @@ class NewsSourceRepository:
             if source.last_crawled_at + timedelta(minutes=source.crawl_frequency_minutes) <= moment:
                 due.append(source)
         return due
+
+    def list_due_rss(self, *, now: datetime | None = None) -> list[NewsSource]:
+        return self.list_due_by_type("rss", now=now)
+
+    def list_due_github(self, *, now: datetime | None = None) -> list[NewsSource]:
+        return self.list_due_by_type("github", now=now)
 
     def touch_last_crawled(self, source_id: str, crawled_at: datetime) -> None:
         existing = self._sources.get(source_id)
@@ -189,14 +196,14 @@ class PostgresNewsSourceRepository(NewsSourceRepository):
             )
         return self.get_by_id(source_id)
 
-    def list_due_rss(self, *, now: datetime | None = None) -> list[NewsSource]:
+    def _list_due_by_type(self, source_type: str, *, now: datetime | None = None) -> list[NewsSource]:
         self._ensure_seed()
         moment = now or datetime.now(UTC)
         with self._engine.connect() as conn:
             rows = conn.execute(
                 select(news_sources_table).where(
                     news_sources_table.c.is_enabled.is_(True),
-                    news_sources_table.c.source_type == "rss",
+                    news_sources_table.c.source_type == source_type,
                 )
             ).mappings()
             due: list[NewsSource] = []
@@ -210,6 +217,12 @@ class PostgresNewsSourceRepository(NewsSourceRepository):
                 ) <= moment:
                     due.append(source)
             return due
+
+    def list_due_rss(self, *, now: datetime | None = None) -> list[NewsSource]:
+        return self._list_due_by_type("rss", now=now)
+
+    def list_due_github(self, *, now: datetime | None = None) -> list[NewsSource]:
+        return self._list_due_by_type("github", now=now)
 
     def touch_last_crawled(self, source_id: str, crawled_at: datetime) -> None:
         with self._engine.begin() as conn:
@@ -288,6 +301,32 @@ def _default_sources() -> list[NewsSource]:
             crawl_frequency_minutes=360,
             is_enabled=True,
             credibility_base_score=0.7,
+            created_at=now,
+            updated_at=now,
+        ),
+        NewsSource(
+            id="newssrc_github_openai_agents",
+            name="OpenAI Agents SDK (GitHub)",
+            source_type="github",
+            url_or_identifier="openai/openai-agents-python",
+            description="GitHub releases for the OpenAI Agents SDK.",
+            priority="high",
+            crawl_frequency_minutes=720,
+            is_enabled=True,
+            credibility_base_score=0.9,
+            created_at=now,
+            updated_at=now,
+        ),
+        NewsSource(
+            id="newssrc_github_langchain",
+            name="LangChain (GitHub)",
+            source_type="github",
+            url_or_identifier="langchain-ai/langchain",
+            description="GitHub releases for LangChain.",
+            priority="medium",
+            crawl_frequency_minutes=720,
+            is_enabled=True,
+            credibility_base_score=0.85,
             created_at=now,
             updated_at=now,
         ),
@@ -422,13 +461,33 @@ def create_news_source_routes(
         source = repository.get_by_id(source_id)
         if source is None:
             raise HTTPException(status_code=404, detail="News source not found")
+        if not source.is_enabled:
+            raise HTTPException(status_code=400, detail="News source is disabled")
+
+        if source.source_type == "github":
+            from backend.app.news_github_ingest import run_github_fetch
+            from backend.app.task_support import news_raw_item_repository
+
+            try:
+                result = run_github_fetch(
+                    source_id,
+                    sources=repository,
+                    raw_items=news_raw_item_repository(),
+                )
+                return {
+                    "source_id": source_id,
+                    "source_type": "github",
+                    "releases_seen": result.releases_seen,
+                    "items_stored": result.items_stored,
+                }
+            except Exception as exc:
+                raise HTTPException(status_code=500, detail=str(exc)) from exc
+
         if source.source_type != "rss":
             raise HTTPException(
                 status_code=400,
-                detail="Only RSS sources can be crawled in this story",
+                detail=f"Crawl not supported for source type: {source.source_type}",
             )
-        if not source.is_enabled:
-            raise HTTPException(status_code=400, detail="News source is disabled")
 
         if enqueue_rss_crawl is not None:
             task_id = enqueue_rss_crawl(source_id)

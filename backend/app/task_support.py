@@ -11,6 +11,14 @@ from backend.app.generation_jobs import (
 )
 from backend.app.llm.recording import RecordingLLMService
 from backend.app.llm.service import LLMService, OpenAILLMService
+
+
+_RESOLVED_AGENTS_SDK: bool | None = None
+
+
+def _use_agents_sdk(settings: Settings) -> bool:
+    """Check whether the Agents SDK backend is configured."""
+    return settings.llm_backend == "agents_sdk"
 from backend.app.news_crawl import NewsRawItemRepository, PostgresNewsRawItemRepository
 from backend.app.news_extraction import (
     ExtractedArticleRepository,
@@ -95,6 +103,54 @@ def generation_job_repository(
     return PostgresGenerationJobRepository(create_database_engine(resolved))
 
 
+def _build_llm_service(
+    api_key: str,
+    model: str,
+    settings: Settings,
+    entity_id: str | None = None,
+) -> LLMService:
+    """Create the configured LLM service based on AI_LAB_LLM_BACKEND."""
+    if _use_agents_sdk(settings):
+        from backend.app.llm.agents_sdk_service import AgentsSDKLLMService
+        from backend.app.llm.sessions import get_session_store
+
+        return AgentsSDKLLMService(
+            api_key=api_key,
+            model=model,
+            session_store=get_session_store(),
+            entity_id=entity_id,
+        )
+    return OpenAILLMService(api_key=api_key, model=model)
+
+
+def _register_blog_guardrails(
+    service: LLMService,
+    idea_id: str,
+    settings: Settings,
+) -> None:
+    """Register guardrails for blog idea pipeline stages."""
+    if not _use_agents_sdk(settings):
+        return
+    from backend.app.llm.agents_sdk_service import AgentsSDKLLMService
+
+    if not isinstance(service, AgentsSDKLLMService):
+        return
+
+    from backend.app.llm.guardrails import claim_extraction_guardrail
+    from backend.app.task_support import idea_repository
+    from backend.app.blog_claims import BlogClaimsRepository
+
+    # Register claim extraction guardrail on technical review
+    ideas_repo = idea_repository(settings)
+    claims_repo = BlogClaimsRepository()
+    guardrail = claim_extraction_guardrail(claims_repo, ideas_repo)
+    service.add_guardrail("technical_review", guardrail)
+
+
+def _provider_name(settings: Settings) -> str:
+    return "agents_sdk" if _use_agents_sdk(settings) else "openai"
+
+
 def llm_service_for_news_item(
     review_entity_id: str,
     settings: Settings | None = None,
@@ -103,7 +159,7 @@ def llm_service_for_news_item(
     api_key = resolved.llm_openai_api_key.get_secret_value()
     if not api_key:
         return None
-    inner = OpenAILLMService(api_key=api_key, model=resolved.llm_model)
+    inner = _build_llm_service(api_key, resolved.llm_model, resolved)
     recorder = ai_run_repository(resolved)
     if recorder is None:
         return inner
@@ -112,7 +168,7 @@ def llm_service_for_news_item(
         recorder,
         entity_type="ai_news_scoring",
         entity_id=review_entity_id,
-        provider="openai",
+        provider=_provider_name(resolved),
         model=resolved.llm_model,
     )
 
@@ -143,7 +199,10 @@ def llm_service_for_idea(
             "AI_LAB_LLM_OPENAI_API_KEY is not set. "
             "Add it to .env or the process environment."
         )
-    inner = OpenAILLMService(api_key=api_key, model=resolved.llm_model)
+    inner = _build_llm_service(
+        api_key, resolved.llm_model, resolved, entity_id=idea_id
+    )
+    _register_blog_guardrails(inner, idea_id, resolved)
     recorder = ai_run_repository(resolved)
     if recorder is None:
         return inner
@@ -152,7 +211,7 @@ def llm_service_for_idea(
         recorder,
         entity_type="blog_idea",
         entity_id=idea_id,
-        provider="openai",
+        provider=_provider_name(resolved),
         model=resolved.llm_model,
     )
 

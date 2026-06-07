@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "node ../scripts/dev.cjs",
     "start": "next start",
     "build": "next build",
     "typecheck": "tsc --noEmit",

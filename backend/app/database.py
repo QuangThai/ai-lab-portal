@@ -151,6 +151,7 @@ ai_runs = Table(
     Column("completion_tokens", Integer, nullable=True),
     Column("total_tokens", Integer, nullable=True),
     Column("latency_ms", Integer, nullable=True),
+    Column("trace_id", String(80), nullable=True),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Index("ix_ai_runs_entity", "entity_type", "entity_id"),
     Index("ix_ai_runs_prompt", "prompt_name", "created_at"),

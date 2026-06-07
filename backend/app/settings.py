@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     llm_openai_api_key: SecretStr = Field(default="")
     llm_model: str = Field(default="gpt-4o")
     llm_e2e_fake: bool = Field(default=False)
+    llm_backend: str = Field(default="openai", pattern=r"^(openai|agents_sdk)$")
     firecrawl_api_key: SecretStr = Field(default="")
 
 

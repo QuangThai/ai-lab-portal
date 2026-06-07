@@ -80,5 +80,6 @@ class RecordingLLMService(LLMService):
             completion_tokens=usage.get("completion_tokens") if usage else None,
             total_tokens=usage.get("total_tokens") if usage else None,
             latency_ms=latency_ms,
+            trace_id=usage.get("trace_id") if usage else None,
         )
         return result, usage

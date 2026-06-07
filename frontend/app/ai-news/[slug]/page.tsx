@@ -69,7 +69,7 @@ export default async function AiNewsDetailPage({ params }: { params: Promise<{ s
 
           <PublicProse contentMarkdown={item.contentMarkdown} />
 
-          <p className="mx-auto w-full max-w-[72ch] text-sm">
+          <p className="mx-auto w-full max-w-full text-sm">
             <Link className="font-semibold text-brand underline underline-offset-4" href={item.sourceUrl} rel="noopener noreferrer" target="_blank">
               Read original source
             </Link>

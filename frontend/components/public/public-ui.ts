@@ -12,7 +12,7 @@ export const publicShellContainerClass =
 export const publicMainWidthClass = "w-full min-w-0";
 
 /** Optional reading measure for long-form body text inside a full-width article */
-export const publicProseMeasureClass = "mx-auto w-full max-w-[72ch]";
+export const publicProseMeasureClass = "mx-auto w-full max-w-full";
 
 /** Inner padding for hero panels, CTA bands, and large cards — 8px rhythm from styles/ */
 export const publicPanelPaddingClass =

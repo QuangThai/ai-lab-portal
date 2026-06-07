@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { createAdminBoundaryHeaders } from "@/lib/admin/fastapi-boundary";
 import { auth } from "@/lib/auth/server";
 import { GenerationJobPoller } from "../generation-job-poller";
-import { BlogIdeaDetailView, type BlogIdeaDetail, type BlogClaimItem } from "../idea-detail-view";
+import { BlogIdeaDetailView, type BlogIdeaDetail, type BlogClaimItem, type AiRunItem } from "../idea-detail-view";
 import {
   approveIdeaAction,
   rejectIdeaAction,
@@ -61,6 +61,22 @@ async function getPublishedSlug(postId: string) {
   return post.slug;
 }
 
+async function getAiRuns(ideaId: string): Promise<AiRunItem[]> {
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) return [];
+  const response = await fetch(
+    `${backendBaseUrl}/admin/blog-ideas/${ideaId}/ai-runs`,
+    {
+      headers: createAdminBoundaryHeaders({
+        user: { id: session.user.id, email: session.user.email },
+      }),
+      cache: "no-store",
+    },
+  );
+  if (!response.ok) return [];
+  return (await response.json()) as AiRunItem[];
+}
+
 async function getClaims(ideaId: string): Promise<BlogClaimItem[]> {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) return [];
@@ -102,7 +118,10 @@ export default async function AdminBlogIdeaDetailPage({
     blogPostId: query.blogPostId ?? idea.published_blog_post_id ?? undefined,
     blogSlug: publishedSlug,
   };
-  const claims = await getClaims(id);
+  const [claims, aiRuns] = await Promise.all([
+    getClaims(id),
+    getAiRuns(id),
+  ]);
 
   return (
     <>
@@ -115,6 +134,7 @@ export default async function AdminBlogIdeaDetailPage({
       <BlogIdeaDetailView
         idea={idea}
         claims={claims}
+        aiRuns={aiRuns}
         operationalStatus={operationalStatus}
         actions={{
           approveIdea: approveIdeaAction,

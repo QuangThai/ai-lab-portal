@@ -35,7 +35,7 @@ export function PipelineStepShell({
     <section
       id={sectionId}
       className={cn(
-        "scroll-mt-24 rounded-[var(--radius-admin-md)] border transition-colors",
+        "min-w-0 scroll-mt-24 rounded-[var(--radius-admin-md)] border transition-colors",
         state === "active"
           ? "border-brand/30 bg-card shadow-[0_1px_3px_0_rgba(0,0,0,0.05)]"
           : "border-border/60 bg-card/80",
@@ -67,7 +67,7 @@ export function PipelineStepShell({
           </div>
         </div>
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex min-w-0 items-center gap-2">
           {state === "active" && headerActions ? headerActions : null}
           {state === "done" ? (
             <button

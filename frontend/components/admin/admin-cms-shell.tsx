@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useSyncExternalStore, type ReactNode } from "react";
 
-import { useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   Briefcase,
   ExternalLink,
@@ -36,14 +36,10 @@ type NavKey =
 
 type Props = { children: ReactNode };
 
-/**
- * Derive the active nav key from the current URL path.
- * Editor routes ("/admin/blog/editor", "/admin/projects/editor", etc.)
- * fall through to their parent section ("blog", "projects", etc.).
- */
+/* ── Active nav key from pathname ── */
+
 function useActiveNavKey(): NavKey {
   const pathname = usePathname();
-
   if (pathname.startsWith("/admin/login")) return "dashboard";
   if (pathname.startsWith("/admin/blog-ideas")) return "ideas";
   if (pathname.startsWith("/admin/blog-comments")) return "blog-comments";
@@ -56,9 +52,12 @@ function useActiveNavKey(): NavKey {
   return "dashboard";
 }
 
-/* ── Grouped navigation ── */
+/* ── Navigation groups ── */
 
-type NavGroup = { label: string; items: Array<{ key: NavKey; href: string; label: string; icon: ReactNode }> };
+type NavGroup = {
+  label: string;
+  items: Array<{ key: NavKey; href: string; label: string; icon: ReactNode }>;
+};
 
 const navGroups: NavGroup[] = [
   {
@@ -92,9 +91,36 @@ const navGroups: NavGroup[] = [
   },
 ];
 
+/* ── Theme toggle ── */
 
 function ThemeToggle({ compact }: { compact?: boolean }) {
   const { resolvedTheme, setTheme } = useTheme();
+
+  const isClient = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
+
+  if (!isClient) {
+    return (
+      <button
+        type="button"
+        aria-label="Toggle theme"
+        suppressHydrationWarning
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-200",
+          "border-border/50 text-muted-foreground/60 hover:border-border/70 hover:text-foreground",
+          "active:scale-[0.97]",
+          compact ? "h-7 text-[11px]" : "h-8 text-xs",
+        )}
+      >
+        <Sun className="size-3" aria-hidden />
+        <span>Light</span>
+      </button>
+    );
+  }
+
   const isDark = resolvedTheme === "dark";
 
   return (
@@ -103,37 +129,56 @@ function ThemeToggle({ compact }: { compact?: boolean }) {
       aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
       aria-pressed={isDark}
       onClick={() => setTheme(isDark ? "light" : "dark")}
-      suppressHydrationWarning
       className={cn(
-        compact
-          ? "inline-flex h-7 items-center gap-1 rounded-[var(--radius-admin-sm)] border border-border/60 px-2 text-[11px] font-medium text-muted-foreground transition-all duration-200"
-          : "inline-flex h-8 items-center gap-1.5 rounded-[var(--radius-admin-sm)] border border-border/60 px-2.5 text-xs font-medium text-muted-foreground transition-all duration-200",
-        "hover:border-border hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-        "active:scale-[0.97]"
+        "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition-all duration-200",
+        "border-border/50 text-muted-foreground/60 hover:border-border/70 hover:text-foreground",
+        "active:scale-[0.97]",
+        compact ? "h-7 text-[11px]" : "h-8 text-xs",
       )}
     >
       {isDark ? <Sun className="size-3" aria-hidden /> : <Moon className="size-3" aria-hidden />}
-      <span suppressHydrationWarning>{isDark ? "Light" : "Dark"}</span>
+      <span className="hidden sm:inline">
+        {isDark ? "Light" : "Dark"}
+      </span>
     </button>
   );
 }
 
-function NavLink({ active, href, icon, label }: { active: boolean; href: string; icon: ReactNode; label: string }) {
+/* ── Nav link ── */
+
+function NavLink({
+  active,
+  href,
+  icon,
+  label,
+}: {
+  active: boolean;
+  href: string;
+  icon: ReactNode;
+  label: string;
+}) {
   return (
     <Link
       href={href}
       aria-current={active ? "page" : undefined}
       className={cn(
-        "group relative flex items-center gap-2.5 rounded-[var(--radius-admin-sm)] px-3 py-2 text-sm font-medium transition-all duration-200",
-        "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+        "group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-200",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/40 focus-visible:ring-offset-2 focus-visible:ring-offset-sidebar",
         active
-          ? "bg-accent/70 text-foreground shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]"
-          : "text-muted-foreground hover:bg-muted/25 hover:text-foreground"
+          ? "bg-brand/10 text-brand"
+          : "text-sidebar-foreground/60 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground/90"
       )}
     >
+      {/* Active indicator bar */}
       {active && (
-        <span className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-brand" aria-hidden />
+        <motion.span
+          layoutId="nav-indicator"
+          className="absolute left-0 top-1/2 h-5 w-0.5 -translate-y-1/2 rounded-full bg-brand shadow-[0_0_8px_rgba(80,179,58,0.4)]"
+          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+        />
       )}
+
+      {/* Icon */}
       <span
         className={cn(
           "flex size-4 shrink-0 items-center justify-center transition-colors",
@@ -142,84 +187,104 @@ function NavLink({ active, href, icon, label }: { active: boolean; href: string;
       >
         {icon}
       </span>
+
+      {/* Label */}
       <span>{label}</span>
     </Link>
   );
 }
 
+/* ══════════════════════════════════════════
+   AdminCmsShell
+   ══════════════════════════════════════════ */
+
 export function AdminCmsShell({ children }: Props) {
-  const prefersReducedMotion = useReducedMotion();
   const active = useActiveNavKey();
 
   return (
     <div className="flex min-h-dvh flex-col bg-background lg:flex-row">
       {/* ── Mobile header ── */}
-      <div className="flex items-center justify-between border-b border-border/60 bg-card px-4 py-3 shadow-[0_1px_2px_rgba(0,0,0,0.03)] lg:hidden">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between border-b border-border/50 bg-sidebar px-4 py-3 lg:hidden">
+        <div className="flex items-center gap-2.5">
           <BrandMark />
-          <p className="text-sm font-semibold text-foreground">AI Lab</p>
+          <div className="h-4 w-px bg-sidebar-border" aria-hidden />
+          <p className="text-sm font-semibold text-sidebar-foreground">AI Lab</p>
         </div>
         <div className="flex items-center gap-2">
-          <ThemeToggle />
+          <ThemeToggle compact />
           <Link
-            className="inline-flex h-8 items-center gap-1 rounded-[var(--radius-admin-sm)] border border-border/60 px-2.5 text-xs font-medium text-muted-foreground transition-all duration-200 hover:border-border hover:bg-muted/40 hover:text-foreground active:scale-[0.97]"
+            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-sidebar-border px-2.5 text-xs font-medium text-sidebar-foreground/60 transition-all duration-200 hover:border-sidebar-border/80 hover:text-sidebar-foreground/90 active:scale-[0.97]"
             href="/"
             target="_blank"
             rel="noopener noreferrer"
           >
-            Site
             <ExternalLink className="size-3" aria-hidden />
           </Link>
         </div>
       </div>
 
       {/* ── Desktop sidebar ── */}
-      <aside className="hidden w-56 shrink-0 flex-col border-r border-border/60 bg-card shadow-[1px_0_3px_rgba(0,0,0,0.03)] lg:sticky lg:top-0 lg:flex lg:h-dvh lg:self-start">
+      <aside className="hidden w-56 shrink-0 flex-col border-r border-sidebar-border bg-sidebar shadow-[2px_0_12px_rgba(0,0,0,0.06)] lg:sticky lg:top-0 lg:flex lg:h-dvh lg:self-start">
+        {/* Brand accent line */}
+        <div className="h-[3px] w-full bg-gradient-to-r from-brand/0 via-brand to-brand/0" />
+
         {/* Brand header */}
         <Link
           href="/"
-          className="group flex items-center gap-2 border-b border-border/60 px-4 py-4 transition-colors hover:bg-muted/10"
+          className="group flex items-center gap-2.5 border-b border-sidebar-border px-4 py-4 transition-colors hover:bg-sidebar-accent/30"
         >
-          <BrandMark />
-          <p className="text-sm font-semibold text-foreground">AI Lab</p>
+          <div className="relative">
+            <BrandMark />
+            <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-brand shadow-[0_0_6px_rgba(80,179,58,0.5)]" aria-hidden />
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-sidebar-foreground">AI Lab</p>
+            <p className="text-[10px] text-sidebar-foreground/40">Control panel</p>
+          </div>
         </Link>
 
-        {/* Navigation — grouped by section */}
-        <nav aria-label="Admin navigation" className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-3">
+        {/* Navigation */}
+        <nav
+          aria-label="Admin navigation"
+          className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto p-3"
+        >
           {navGroups.map((group) => (
             <div key={group.label} className="flex flex-col">
-              <span className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/60 select-none">
+              <span className="px-3 pb-1.5 pt-3.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-sidebar-foreground/30 select-none">
                 {group.label}
               </span>
               {group.items.map((item) => (
-                <NavLink key={item.key} active={active === item.key} href={item.href} icon={item.icon} label={item.label} />
+                <NavLink
+                  key={item.key}
+                  active={active === item.key}
+                  href={item.href}
+                  icon={item.icon}
+                  label={item.label}
+                />
               ))}
             </div>
           ))}
         </nav>
 
         {/* Footer */}
-        <div className="flex items-center justify-between gap-1 border-t border-border/60 px-2.5 py-2">
-          <Link
-            className="inline-flex h-7 items-center gap-1 rounded-[var(--radius-admin-sm)] px-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted/25 hover:text-foreground"
-            href="/"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <ExternalLink className="size-3" aria-hidden />
-            Site
-          </Link>
-          <ThemeToggle compact />
+        <div className="border-t border-sidebar-border px-3 py-3">
+          <div className="flex items-center justify-between gap-1">
+            <Link
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2.5 text-[11px] font-medium text-sidebar-foreground/50 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground/80"
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <ExternalLink className="size-3" aria-hidden />
+              View site
+            </Link>
+            <ThemeToggle compact />
+          </div>
         </div>
       </aside>
 
       {/* ── Main content ── */}
-      <main
-        className={cn(
-          "min-w-0 flex-1 px-5 py-6 sm:px-7 sm:py-8",
-          !prefersReducedMotion && "animate-in fade-in duration-200"
-        )}
-      >
+      <main className="min-w-0 flex-1 px-5 py-6 sm:px-8 sm:py-8 lg:px-10">
         {children}
       </main>
     </div>

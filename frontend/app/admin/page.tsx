@@ -17,14 +17,12 @@ import { AdminDashboardHeader } from "@/components/admin/admin-dashboard-header"
 import { AdminDashboardStatGrid } from "@/components/admin/admin-dashboard-stat-grid";
 import { AdminModuleCard, type AdminModuleCardProps } from "@/components/admin/admin-module-card";
 import { AdminHealthWidget } from "@/components/admin/admin-health-widget";
-import {
-  adminCardClass,
-  adminPageStackClass,
-} from "@/components/admin/admin-ui";
+import { adminPageStackClass } from "@/components/admin/admin-ui";
 
 import { auth } from "@/lib/auth/server";
 import { fetchAdminDashboardStats } from "@/lib/admin/fetch-dashboard-stats";
-import { cn } from "@/lib/utils";
+
+/* ── Module data ── */
 
 const liveModules: AdminModuleCardProps[] = [
   { title: "Blog posts", description: "Review drafts, publish articles, and manage the editorial library.", href: "/admin/blog", icon: FileText, status: "live" },
@@ -42,11 +40,16 @@ const plannedModules: AdminModuleCardProps[] = [
   { title: "Publishing checks", description: "Preflight SEO, link, and metadata validation.", icon: Sparkles, status: "planned" },
 ];
 
+/* ── Page ── */
+
 export default async function AdminDashboardPage() {
   const session = await auth.api.getSession({ headers: await headers() });
   if (!session) redirect("/admin/login");
 
-  const stats = await fetchAdminDashboardStats({ id: session.user.id, email: session.user.email });
+  const stats = await fetchAdminDashboardStats({
+    id: session.user.id,
+    email: session.user.email,
+  });
 
   const statCards = [
     { label: "Blog posts", value: stats.blogTotal, hint: `${stats.blogPublished} live, ${stats.blogDrafts} drafts`, href: "/admin/blog", icon: FileText },
@@ -58,50 +61,76 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className={adminPageStackClass}>
+      {/* ── Header ── */}
       <AdminDashboardHeader
         description="A calmer publishing cockpit for reviewing ideas, drafting articles, and keeping public content intentional."
         email={session.user.email}
         title="Operations dashboard"
       />
 
+      {/* ── Stats at a glance ── */}
       <AdminDashboardStatGrid stats={statCards} />
 
       {/* ── Live workflows ── */}
-      <section className="rounded-[var(--radius-admin-md)] border border-border/60 bg-card shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
-        <div className="border-b border-border/50 px-5 py-3.5">
-          <h2 className="text-sm font-semibold text-foreground">Live workflows</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Everything here is wired to the FastAPI admin boundary today.
-          </p>
+      <section className="rounded-2xl border border-border/40 bg-card shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+        <div className="flex items-center gap-3 border-b border-border/30 px-6 py-4">
+          <span className="flex size-7 items-center justify-center rounded-lg bg-green-500/10">
+            <span className="size-2 rounded-full bg-green-500 shadow-[0_0_6px_rgba(80,179,58,0.3)]" aria-hidden />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold text-foreground">
+              Live workflows
+            </h2>
+            <p className="mt-px text-xs text-muted-foreground/70">
+              Everything here is wired to the FastAPI admin boundary today.
+            </p>
+          </div>
         </div>
-        <div className="grid gap-2 p-3.5 sm:grid-cols-2 xl:grid-cols-3 sm:p-4">
+        <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-3 sm:p-6">
           {liveModules.map((module) => (
             <AdminModuleCard key={module.title} compact {...module} />
           ))}
         </div>
       </section>
 
-      {/* ── Recent activity + Roadmap ⎯ side by side ── */}
-      <div className="grid gap-5 lg:grid-cols-[1fr_22rem]">
-        {/* Recent activity */}
+      {/* ── Two-column bottom section ── */}
+      <div className="grid gap-5 lg:grid-cols-[1fr_26rem]">
+        {/* Left: Recent activity */}
         {stats.recentActivity.length > 0 ? (
-          <section className={cn(adminCardClass, "flex flex-col")}>
-            <div className="flex items-center gap-2.5 border-b border-border/50 px-5 py-4">
-              <Activity className="size-4 text-muted-foreground" aria-hidden />
+          <section className="rounded-2xl border border-border/40 bg-card shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+            <div className="flex items-center gap-3 border-b border-border/30 px-6 py-4">
+              <span className="flex size-7 items-center justify-center rounded-lg bg-muted/30">
+                <Activity className="size-3.5 text-muted-foreground/70" aria-hidden />
+              </span>
               <div>
-                <h2 className="text-sm font-semibold text-foreground">Recent activity</h2>
-                <p className="mt-px text-sm text-muted-foreground">Latest editorial actions.</p>
+                <h2 className="text-sm font-semibold text-foreground">
+                  Recent activity
+                </h2>
+                <p className="mt-px text-xs text-muted-foreground/70">
+                  Latest editorial actions.
+                </p>
               </div>
             </div>
-            <div className="flex-1 divide-y divide-border/30">
+            <div className="divide-y divide-border/20">
               {stats.recentActivity.slice(0, 6).map((event, i) => (
-                <div key={i} className="flex items-center justify-between gap-3 px-5 py-3 text-sm transition-colors hover:bg-muted/10">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="size-1.5 shrink-0 rounded-full bg-brand/60" aria-hidden />
-                    <span className="truncate text-foreground">{event.action}</span>
+                <div
+                  key={i}
+                  className="flex items-center justify-between gap-3 px-6 py-3.5 text-sm transition-colors hover:bg-muted/5"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="relative flex size-2 shrink-0">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-green-500/30 opacity-75" />
+                      <span className="relative inline-flex size-2 rounded-full bg-green-500" />
+                    </span>
+                    <span className="truncate text-foreground/80">
+                      {event.action}
+                    </span>
                   </div>
-                  <span className="shrink-0 text-xs text-muted-foreground/70">
-                    {new Date(event.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                  <span className="shrink-0 text-xs text-muted-foreground/50">
+                    {new Date(event.createdAt).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                    })}
                   </span>
                 </div>
               ))}
@@ -109,41 +138,56 @@ export default async function AdminDashboardPage() {
           </section>
         ) : null}
 
-        {/* Right column: Roadmap + Human review */}
+        {/* Right column: Roadmap + Health + Human review */}
         <div className="flex flex-col gap-5">
-          <div className={cn(adminCardClass, "p-5")}>
-            <div className="flex items-center gap-2.5">
-              <span className="flex size-8 items-center justify-center rounded-[var(--radius-admin-sm)] bg-accent text-brand ring-1 ring-brand/10">
-                <Sparkles className="size-4" aria-hidden />
+          {/* Roadmap card */}
+          <section className="rounded-2xl border border-border/40 bg-card shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+            <div className="flex items-center gap-3 border-b border-border/30 px-6 py-4">
+              <span className="flex size-7 items-center justify-center rounded-lg bg-amber-500/10">
+                <Sparkles className="size-3.5 text-amber-500" aria-hidden />
               </span>
               <div>
-                <h2 className="text-sm font-semibold text-foreground">Roadmap</h2>
-                <p className="mt-px text-xs text-muted-foreground">What&apos;s coming next</p>
+                <h2 className="text-sm font-semibold text-foreground">
+                  Roadmap
+                </h2>
+                <p className="mt-px text-xs text-muted-foreground/70">
+                  What&apos;s coming next
+                </p>
               </div>
             </div>
-            <div className="mt-4 grid gap-2.5">
+            <div className="grid gap-2.5 p-5">
               {plannedModules.map((module) => (
-                <AdminModuleCard key={module.title} {...module} />
+                <AdminModuleCard key={module.title} compact {...module} />
               ))}
             </div>
-          </div>
+          </section>
 
+          {/* Health widget */}
           <AdminHealthWidget />
 
-          <div className={cn(adminCardClass, "p-5")}>
-            <div className="flex items-center gap-2.5">
-              <span className="flex size-8 items-center justify-center rounded-[var(--radius-admin-sm)] bg-accent text-brand ring-1 ring-brand/10">
-                <Shield className="size-4" aria-hidden />
+          {/* Human review card */}
+          <section className="rounded-2xl border border-border/40 bg-card shadow-[0_1px_3px_rgba(0,0,0,0.03)]">
+            <div className="flex items-center gap-3 border-b border-border/30 px-6 py-4">
+              <span className="flex size-7 items-center justify-center rounded-lg bg-blue-500/10">
+                <Shield className="size-3.5 text-blue-500" aria-hidden />
               </span>
               <div>
-                <h2 className="text-sm font-semibold text-foreground">Human review</h2>
-                <p className="mt-px text-xs text-muted-foreground">Keeps publishing deliberate</p>
+                <h2 className="text-sm font-semibold text-foreground">
+                  Human review
+                </h2>
+                <p className="mt-px text-xs text-muted-foreground/70">
+                  Keeps publishing deliberate
+                </p>
               </div>
             </div>
-            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
-              Roles, provider workflows, and automated drafting arrive in later story slices. Today this shell keeps publishing deliberate and inspectable.
-            </p>
-          </div>
+            <div className="px-6 py-5">
+              <p className="text-sm leading-relaxed text-muted-foreground/80">
+                Roles, provider workflows, and automated drafting arrive in
+                later story slices. Today this shell keeps publishing deliberate
+                and inspectable.
+              </p>
+            </div>
+          </section>
         </div>
       </div>
     </div>

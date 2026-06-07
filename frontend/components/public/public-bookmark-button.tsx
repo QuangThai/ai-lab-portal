@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useCallback, useEffect, useState, startTransition } from "react";
 import { Bookmark } from "lucide-react";
 
@@ -12,16 +12,17 @@ type PublicBookmarkButtonProps = {
 
 export function PublicBookmarkButton({ slug }: PublicBookmarkButtonProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [isBookmarked, setIsBookmarked] = useState(false);
 
+  // Re-fetch bookmark state on navigation (e.g. after bookmarking on detail page)
   useEffect(() => {
     fetch("/api/auth/get-session")
       .then((r) => r.json())
       .then((data) => {
         setIsAuthenticated(!!data?.user);
         if (data?.user) {
-          // Check bookmark status
           fetch(`/api/bookmarks/check/${slug}`)
             .then((r) => r.json())
             .then((bData) => setIsBookmarked(!!bData))
@@ -29,7 +30,7 @@ export function PublicBookmarkButton({ slug }: PublicBookmarkButtonProps) {
         }
       })
       .catch(() => setIsAuthenticated(false));
-  }, [slug]);
+  }, [slug, pathname]); // pathname dependency: re-fetch on page navigation
 
   const handleToggle = useCallback(async () => {
     if (!isAuthenticated) {
@@ -44,10 +45,10 @@ export function PublicBookmarkButton({ slug }: PublicBookmarkButtonProps) {
           method: "POST",
         });
         if (!res.ok) {
-          setIsBookmarked((prev) => !prev); // revert
+          setIsBookmarked((prev) => !prev);
         }
       } catch {
-        setIsBookmarked((prev) => !prev); // revert
+        setIsBookmarked((prev) => !prev);
       }
     });
   }, [isAuthenticated, slug, router]);
@@ -63,9 +64,13 @@ export function PublicBookmarkButton({ slug }: PublicBookmarkButtonProps) {
   return (
     <button
       type="button"
-      onClick={handleToggle}
+      onClick={(e) => {
+        e.stopPropagation();
+        e.preventDefault();
+        handleToggle();
+      }}
       className={cn(
-        "flex h-9 w-9 items-center justify-center rounded-full transition-colors",
+        "flex h-9 w-9 items-center justify-center rounded-full transition-colors cursor-pointer",
         isBookmarked
           ? "text-brand hover:bg-brand/10"
           : "text-muted-foreground hover:bg-muted hover:text-foreground",

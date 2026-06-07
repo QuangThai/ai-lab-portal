@@ -153,4 +153,4 @@ def test_admin_crawl_rejects_non_rss_source() -> None:
         headers=_admin_headers(),
     )
     assert response.status_code == 400
-    assert "RSS" in response.json()["detail"]
+    assert "not supported" in response.json()["detail"]

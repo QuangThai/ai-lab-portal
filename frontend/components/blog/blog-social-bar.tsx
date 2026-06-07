@@ -127,7 +127,11 @@ export function BlogSocialBar({
       <div className="flex items-center gap-4 text-sm text-muted-foreground">
         <button
           type="button"
-          onClick={handleBookmark}
+          onClick={e => {
+            e.stopPropagation();
+            e.preventDefault();
+            handleBookmark();
+          }}
           className={cn(
             "inline-flex items-center gap-1.5 transition-colors hover:text-foreground",
             stats.is_bookmarked && "text-brand",

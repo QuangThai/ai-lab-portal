@@ -504,3 +504,28 @@ def ingest_due_social_x_sources_task() -> list[dict]:
         raw_items=news_raw_item_repository(),
     )
     return [r.model_dump() for r in results]
+
+
+@celery_app.task(name="news.fetch_github_source")
+def fetch_github_source_task(source_id: str) -> dict:
+    from backend.app.news_github_ingest import GitHubReleaseProvider, run_github_fetch
+
+    result = run_github_fetch(
+        source_id,
+        sources=news_source_repository(),
+        raw_items=news_raw_item_repository(),
+        provider=GitHubReleaseProvider(fake=False),
+    )
+    return result.model_dump()
+
+
+@celery_app.task(name="news.fetch_due_github_sources")
+def fetch_due_github_sources_task() -> list[dict]:
+    from backend.app.news_github_ingest import GitHubReleaseProvider, run_due_github_sources
+
+    results = run_due_github_sources(
+        sources=news_source_repository(),
+        raw_items=news_raw_item_repository(),
+        provider=GitHubReleaseProvider(fake=False),
+    )
+    return [r.model_dump() for r in results]

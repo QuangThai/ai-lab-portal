@@ -148,7 +148,7 @@ export default async function BlogDetailPage({ params }: { params: Promise<{ slu
           </div>
 
           {post.imageUrl && (
-            <div className="relative aspect-[16/9] w-full overflow-hidden rounded-[1.5rem] border border-border/80 bg-muted shadow-[0_24px_60px_color-mix(in_srgb,var(--primary)_7%,transparent)]">
+            <div className="relative aspect-video w-full overflow-hidden rounded-[1.5rem] border border-border/80 bg-muted shadow-[0_24px_60px_color-mix(in_srgb,var(--primary)_7%,transparent)]">
               <Image
                 alt=""
                 className="object-cover"
@@ -162,14 +162,15 @@ export default async function BlogDetailPage({ params }: { params: Promise<{ slu
 
           <PublicProse contentMarkdown={post.contentMarkdown} />
 
-        <div className="mx-auto w-full max-w-[72ch]">
+        {/* max-w-[72ch] */}
+        <div className="mx-auto w-full max-w-full">
           <BlogShareButtons title={post.title} slug={post.slug} />
         </div>
 
         <RelatedBlogPosts posts={relatedPosts} />
 
         {/* Social features */}
-        <div className="mx-auto flex w-full max-w-[72ch] flex-col gap-8">
+        <div className="mx-auto flex w-full max-w-full flex-col gap-8">
           <BlogSocialBar
             isAuthenticated={!!session}
             initialStats={socialStats}

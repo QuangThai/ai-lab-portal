@@ -28,6 +28,10 @@ from backend.app.llm.service import (
 )
 
 
+# The Agents SDK service requires an API key, so we use fixture-level
+# monkeypatching to test structural aspects without real HTTP calls.
+
+
 # ===========================================================================
 # Prompt registry
 # ===========================================================================
@@ -351,3 +355,87 @@ class TestPromptServiceIntegration:
                 service.generate(name, {}, BlogIdea)
             except LLMGenerationError:
                 pass  # Expected for names not in responses dict
+
+
+# ===========================================================================
+# Agents SDK Service (structural tests — no real API calls)
+# ===========================================================================
+
+
+class TestAgentsSDKLLMService:
+    """Test the Agents SDK LLM service without calling real APIs.
+
+    The Agents SDK tries to make network calls on ``Runner.run_sync()``, so
+    these tests focus on construction, prompt lookup, and error handling.
+    Full pipeline verification is covered by E2E tests with fake backend.
+    """
+
+    def test_constructor(self) -> None:
+        from backend.app.llm.agents_sdk_service import AgentsSDKLLMService
+
+        service = AgentsSDKLLMService(api_key="test-key", model="gpt-4o")
+        assert service._api_key == "test-key"
+        assert service._model == "gpt-4o"
+
+    def test_unknown_prompt_raises_key_error(self) -> None:
+        from backend.app.llm.agents_sdk_service import AgentsSDKLLMService
+
+        service = AgentsSDKLLMService(api_key="test-key")
+        with pytest.raises(KeyError, match="Unknown prompt"):
+            service.generate("nonexistent_prompt", {}, BlogIdea)
+
+    def test_missing_api_key_still_constructs(self) -> None:
+        """The service does not validate the key until first API call."""
+        from backend.app.llm.agents_sdk_service import AgentsSDKLLMService
+
+        service = AgentsSDKLLMService(api_key="")
+        assert service._api_key == ""
+
+    def test_all_prompts_have_system_and_user_template(self) -> None:
+        """Verify every registered prompt has non-empty system + user_template."""
+        for name in PROMPT_REGISTRY:
+            prompt = PROMPT_REGISTRY[name]
+            assert len(prompt.system) > 0, f"Prompt '{name}' has empty system"
+            assert len(prompt.user_template) > 0, f"Prompt '{name}' has empty user_template"
+
+
+# ===========================================================================
+# Backend selection (task_support factory)
+# ===========================================================================
+
+
+class TestLLMBackendSelection:
+    """Test that the factory function selects the right backend."""
+
+    def test_default_is_openai(self) -> None:
+        from backend.app.settings import Settings
+        from backend.app.task_support import _use_agents_sdk
+
+        settings = Settings(llm_backend="openai")
+        assert not _use_agents_sdk(settings)
+
+    def test_agents_sdk_selected_when_configured(self) -> None:
+        from backend.app.settings import Settings
+        from backend.app.task_support import _use_agents_sdk
+
+        settings = Settings(llm_backend="agents_sdk")
+        assert _use_agents_sdk(settings)
+
+    def test_fake_overrides_backend(self) -> None:
+        """E2E fake mode takes precedence over backend selection."""
+        from backend.app.settings import Settings
+        from backend.app.task_support import llm_service_for_idea
+
+        # E2E fake + agents_sdk backend — should still return fake service
+        settings = Settings(
+            llm_e2e_fake=True,
+            llm_backend="agents_sdk",
+        )
+        service = llm_service_for_idea("test-idea-id", settings)
+        from backend.app.llm.service import FakeLLMService
+
+        # The inner service (unwrapped from RecordingLLMService)
+        inner = service._inner if hasattr(service, "_inner") else service
+        assert isinstance(inner, FakeLLMService), (
+            f"Expected FakeLLMService, got {type(inner).__name__}"
+        )

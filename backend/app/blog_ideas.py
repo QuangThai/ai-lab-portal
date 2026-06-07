@@ -654,6 +654,37 @@ def _dispatch_or_run_generation(
     )
 
 
+async def _run_next_extract_claims(
+    idea_id: str,
+    repository: BlogIdeaRepository,
+    claims_repository: BlogClaimsRepository | None,
+) -> dict:
+    """Helper for /run-next: extract claims from the approved draft."""
+    if claims_repository is None:
+        return {"action": "blocked", "message": "Claims repository not configured"}
+    idea = repository.get_by_id(idea_id)
+    if idea is None:
+        return {"action": "blocked", "message": "Idea not found"}
+    if not idea.draft_markdown:
+        return {"action": "blocked", "message": "Draft markdown is required"}
+    from backend.app.task_support import llm_service_for_idea
+
+    try:
+        service = llm_service_for_idea(idea_id)
+        extraction = extract_claims_with_llm(idea, service)
+        claims = claims_from_extraction(idea_id, extraction)
+    except Exception:
+        claims = heuristic_claims_from_draft(idea_id, idea.draft_markdown)
+    claims_repository.replace_for_idea(idea_id, claims)
+    count = len(claims)
+    return {
+        "action": "generated",
+        "next_stage": "claims",
+        "claims_count": count,
+        "message": f"{count} claim(s) extracted" if count else "No claims found",
+    }
+
+
 def create_blog_idea_routes(
     repository: BlogIdeaRepository,
     settings: Settings,
@@ -940,6 +971,233 @@ def create_blog_idea_routes(
         if claims_repository is None:
             return []
         return claims_repository.list_for_idea(idea_id)
+
+    @router.post("/{idea_id}/run-next")
+    async def run_next(
+        idea_id: str,
+        _identity: AdminIdentity = Depends(require_identity),
+    ) -> dict:
+        """Unified endpoint: read idea state, approve the current gate, and
+        dispatch the next pipeline stage.
+
+        This replaces the frontend's ``approveAndRunNext()`` two-step
+        (PATCH + POST). Call this once and the backend handles both.
+
+        Returns:
+            ``{"action": ..., "next_stage": ..., "task_id": ..., "message": ...}``
+
+        Actions:
+            - ``approved`` — gate approved, next stage dispatched (202 with task_id)
+            - ``generated`` — synchronous generation completed (for claims)
+            - ``published`` — idea published to blog
+            - ``blocked`` — cannot advance (check message for reason)
+            - ``done`` — pipeline complete, idea already published
+        """
+        idea = repository.get_by_id(idea_id)
+        if idea is None:
+            raise HTTPException(status_code=404, detail="Blog idea not found")
+
+        # Already published?
+        if idea.published_blog_post_id:
+            return {"action": "done", "message": "Idea already published"}
+
+        # Pipeline decision tree — mirrors getPipelineNextAction() on frontend
+        # but executes the approval + dispatch in one call.
+
+        # Gate 1: Idea approval
+        if idea.status == "pending":
+            repository.update(idea_id, BlogIdeaUpdate(status="approved"))
+            from backend.app.tasks import generate_blog_outline_task
+
+            return _dispatch_or_run_generation(
+                repository,
+                generate_blog_outline_task,
+                stage="outline",
+                idea_id=idea_id,
+                message="Idea approved, outline generation started",
+                jobs_repository=jobs_repository,
+                kwargs={"idea_id": idea_id},
+                settings=settings,
+            )
+
+        if idea.status == "rejected":
+            return {"action": "blocked", "message": "Idea was rejected"}
+
+        # Gate 2: Outline approval
+        if idea.outline_status == "pending" and idea.outline_sections:
+            repository.update(idea_id, BlogIdeaUpdate(outline_status="approved"))
+            from backend.app.tasks import generate_blog_draft_task
+
+            return _dispatch_or_run_generation(
+                repository,
+                generate_blog_draft_task,
+                stage="draft",
+                idea_id=idea_id,
+                message="Outline approved, draft generation started",
+                jobs_repository=jobs_repository,
+                kwargs={"idea_id": idea_id},
+                settings=settings,
+            )
+
+        if not idea.outline_sections or idea.outline_status == "rejected":
+            from backend.app.tasks import generate_blog_outline_task
+
+            return _dispatch_or_run_generation(
+                repository,
+                generate_blog_outline_task,
+                stage="outline",
+                idea_id=idea_id,
+                message="Outline generation started",
+                jobs_repository=jobs_repository,
+                kwargs={"idea_id": idea_id},
+                settings=settings,
+            )
+
+        # Gate 3: Draft approval
+        if idea.draft_status == "pending" and idea.draft_markdown:
+            repository.update(idea_id, BlogIdeaUpdate(draft_status="approved"))
+            from backend.app.tasks import generate_technical_review_task
+
+            return _dispatch_or_run_generation(
+                repository,
+                generate_technical_review_task,
+                stage="technical_review",
+                idea_id=idea_id,
+                message="Draft approved, technical review started",
+                jobs_repository=jobs_repository,
+                kwargs={"idea_id": idea_id},
+                settings=settings,
+            )
+
+        if not idea.draft_markdown or idea.draft_status == "rejected":
+            from backend.app.tasks import generate_blog_draft_task
+
+            return _dispatch_or_run_generation(
+                repository,
+                generate_blog_draft_task,
+                stage="draft",
+                idea_id=idea_id,
+                message="Draft generation started",
+                jobs_repository=jobs_repository,
+                kwargs={"idea_id": idea_id},
+                settings=settings,
+            )
+
+        # Gate 4: Technical review
+        if not idea.technical_review and not idea.technical_review_status:
+            from backend.app.tasks import generate_technical_review_task
+
+            return _dispatch_or_run_generation(
+                repository,
+                generate_technical_review_task,
+                stage="technical_review",
+                idea_id=idea_id,
+                message="Technical review started",
+                jobs_repository=jobs_repository,
+                kwargs={"idea_id": idea_id},
+                settings=settings,
+            )
+
+        if idea.technical_review_status == "pending" and idea.technical_review:
+            repository.update(
+                idea_id, BlogIdeaUpdate(technical_review_status="approved")
+            )
+            from backend.app.tasks import generate_marketing_metadata_task
+
+            return _dispatch_or_run_generation(
+                repository,
+                generate_marketing_metadata_task,
+                stage="marketing",
+                idea_id=idea_id,
+                message="Review approved, marketing generation started",
+                jobs_repository=jobs_repository,
+                kwargs={"idea_id": idea_id},
+                settings=settings,
+            )
+
+        if idea.technical_review_status == "rejected":
+            from backend.app.tasks import generate_technical_review_task
+
+            return _dispatch_or_run_generation(
+                repository,
+                generate_technical_review_task,
+                stage="technical_review",
+                idea_id=idea_id,
+                message="Technical review regenerated",
+                jobs_repository=jobs_repository,
+                kwargs={"idea_id": idea_id},
+                settings=settings,
+            )
+
+        # Gate 5: Marketing approval
+        if not idea.marketing_metadata and idea.technical_review_status == "approved":
+            from backend.app.tasks import generate_marketing_metadata_task
+
+            return _dispatch_or_run_generation(
+                repository,
+                generate_marketing_metadata_task,
+                stage="marketing",
+                idea_id=idea_id,
+                message="Marketing metadata generation started",
+                jobs_repository=jobs_repository,
+                kwargs={"idea_id": idea_id},
+                settings=settings,
+            )
+
+        if idea.marketing_status == "pending" and idea.marketing_metadata:
+            repository.update(idea_id, BlogIdeaUpdate(marketing_status="approved"))
+            # After marketing approval, extract claims synchronously
+            return await _run_next_extract_claims(idea_id, repository, claims_repository)
+
+        if idea.marketing_status == "rejected":
+            from backend.app.tasks import generate_marketing_metadata_task
+
+            return _dispatch_or_run_generation(
+                repository,
+                generate_marketing_metadata_task,
+                stage="marketing",
+                idea_id=idea_id,
+                message="Marketing metadata regenerated",
+                jobs_repository=jobs_repository,
+                kwargs={"idea_id": idea_id},
+                settings=settings,
+            )
+
+        # Gate 6: Claims → Publish
+        if (idea.marketing_status == "approved"
+                and idea.technical_review_status == "approved"):
+            # Check if claims exist
+            existing_claims = []
+            if claims_repository is not None:
+                existing_claims = claims_repository.list_for_idea(idea_id)
+            if not existing_claims:
+                return await _run_next_extract_claims(
+                    idea_id, repository, claims_repository
+                )
+            # Claims exist — try to publish
+            if blog_repository is not None:
+                from backend.app.blog_publish import publish_idea_to_blog
+
+                post_id, slug, already_linked = publish_idea_to_blog(
+                    idea_id,
+                    repository,
+                    blog_repository,
+                    claims_repository=claims_repository,
+                )
+                if not already_linked and record_blog_audit is not None:
+                    record_blog_audit(_identity, "blog_post.created", post_id)
+                    record_blog_audit(_identity, "blog_post.published", post_id)
+                    record_blog_audit(
+                        _identity, "blog_idea.published_to_blog", idea_id
+                    )
+                return {
+                    "action": "published",
+                    "blog_post_id": post_id,
+                    "slug": slug,
+                    "message": "Idea published to blog",
+                }
+
+        return {"action": "blocked", "message": "Pipeline cannot advance"}
 
     @router.post("/{idea_id}/extract-claims")
     async def extract_claims(

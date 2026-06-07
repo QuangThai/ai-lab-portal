@@ -34,7 +34,7 @@ function adminListActionClassName(variant?: AdminListActionVariant, className?: 
 /** Row action cluster — only use AdminListActionLink / AdminListActionForm + AdminListSubmitButton. */
 export function AdminListActions({ children }: AdminListActionsProps) {
   return (
-    <div className="flex w-fit max-w-full shrink-0 flex-wrap items-center gap-2">{children}</div>
+    <div className="flex flex-wrap items-center gap-2">{children}</div>
   );
 }
 

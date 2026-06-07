@@ -22,6 +22,47 @@ After work, record a trace with `scripts/bin/harness-cli trace`. For
 `scripts/bin/harness-cli query backlog`, reference that backlog id in `notes`
 and use `harness_friction: none` unless something changed. See
 `docs/TRACE_SPEC.md` (recurring friction deduplication).
+
+### Trace Recording Checklist & Template
+
+Before recording a trace, ensure all **Standard-tier** fields are filled
+(required for normal-lane tasks; tiny-lane may use Minimal per TRACE_SPEC.md):
+
+- [ ] `--summary` — one sentence naming outcome or attempted outcome
+- [ ] `--outcome` — one of: `completed`, `blocked`, `partial`, `failed`
+- [ ] `--agent` — short agent/tool name (e.g. `pi`, `codex`, `cursor`, `zed`)
+- [ ] `--actions` — comma-separated list of concrete actions taken
+- [ ] `--read` — comma-separated list of files/commands read
+- [ ] `--changed` — comma-separated list of files changed (omit only if no files changed)
+- [ ] `--friction` — name new pain, or `none` if actively checked; reference backlog id for recurring items
+- [ ] `--intake` — intake id (when an intake was recorded)
+- [ ] `--story` — story id (when work maps to one story)
+- [ ] `--errors` — JSON array text, or `none` (required for Detailed traces)
+- [ ] `--duration` — seconds estimate (required for Detailed)
+- [ ] `--tokens` — token estimate (required for Detailed)
+- [ ] `--decisions` — scope/validation choices (required for Detailed)
+
+**Standard-tier template** (copy-paste, fill values):
+
+```bash
+scripts/bin/harness-cli trace \
+  --summary "<one sentence naming outcome>" \
+  --intake <id> \
+  --story <ID> \
+  --agent <name> \
+  --outcome <completed|blocked|partial|failed> \
+  --actions "<action1>,<action2>,<action3>" \
+  --read "<file1>,<file2>,<command1>" \
+  --changed "<file1>,<file2>" \
+  --friction "<new pain or none>" \
+  --duration <seconds_estimate> \
+  --tokens <estimate>
+```
+
+**Important**: pass `--agent` and `--actions` explicitly — some agents
+(cursor, zed, codex) may drop these flags across session continues if only
+the summary is filled. Run `python scripts/trace_quality.py` after recording
+to confirm zero core gaps.
 <!-- HARNESS:END -->
 
 ## Tools RULES:
