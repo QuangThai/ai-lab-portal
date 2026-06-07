@@ -77,6 +77,8 @@ export function useAutosave({
   const titleRef = useRef(title);
   const slugRef = useRef(slug);
   const isDirtyRef = useRef(false);
+  const saveActionRef = useRef(saveAction);
+  saveActionRef.current = saveAction;
   const serverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const localTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -127,7 +129,7 @@ export function useAutosave({
         fd.set("slug", slugRef.current);
         fd.set("excerpt", "");
         fd.set("authorName", "");
-        await saveAction(fd);
+        await saveActionRef.current(fd);
         setSaveStatus("saved");
         isDirtyRef.current = false;
         // Clear localStorage after successful save
@@ -145,7 +147,7 @@ export function useAutosave({
     return () => {
       if (serverTimerRef.current) clearTimeout(serverTimerRef.current);
     };
-  }, [content, title, slug, postId, saveAction, serverDelay]);
+  }, [content, title, slug, postId, serverDelay]);
 
   const save = useCallback(async () => {
     if (!postId) return;
@@ -157,7 +159,7 @@ export function useAutosave({
       fd.set("slug", slugRef.current);
       fd.set("excerpt", "");
       fd.set("authorName", "");
-      await saveAction(fd);
+      await saveActionRef.current(fd);
       setSaveStatus("saved");
       isDirtyRef.current = false;
     } catch {

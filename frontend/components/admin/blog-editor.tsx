@@ -15,6 +15,7 @@ import {
 } from "@/components/admin/admin-ui";
 import { BlogRevisionPanel } from "@/components/admin/blog-revision-panel";
 import { PendingSubmitButton } from "@/components/admin/pending-submit-button";
+import { useAutosave } from "@/components/admin/use-autosave";
 import { hasPendingBlogImages, stripBrokenBlogImages } from "@/lib/sanitize-blog-markdown";
 import { uploadImage } from "@/lib/upload";
 import { cn } from "@/lib/utils";
@@ -137,6 +138,29 @@ export function BlogEditor({
   useEffect(() => { contentMarkdownRef.current = contentMarkdown; }, [contentMarkdown]);
   const [revisionPanelOpen, setRevisionPanelOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState(initialImageUrl);
+
+  // ── Autosave ──
+  const { saveStatus, hasLocalDraft, restoreFromLocal, clearLocalDraft } = useAutosave({
+    postId: initialPostId || undefined,
+    content: contentMarkdown,
+    title: titleRef.current,
+    slug: slugState.slug,
+    saveAction: async (fd) => {
+      await saveFormAction(fd);
+    },
+  });
+
+  // ── Warn on unsaved changes ──
+  useEffect(() => {
+    if (!initialPostId) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      if (saveStatus === "unsaved") {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [saveStatus, initialPostId]);
   const [selectedTags, setSelectedTags] = useState<string[]>(() => initialTagNames.slice(0, 4));
   const [tagDraft, setTagDraft] = useState("");
 
