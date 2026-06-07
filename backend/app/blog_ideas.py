@@ -254,6 +254,8 @@ class BlogIdeaRepository:
             updated.technical_review_status = payload.technical_review_status
         if payload.marketing_status is not None:
             updated.marketing_status = payload.marketing_status
+        if payload.scheduled_at is not None:
+            updated.scheduled_at = payload.scheduled_at
         updated.updated_at = datetime.now(UTC)
         self._ideas[idea_id] = updated
         return updated
@@ -444,6 +446,8 @@ class PostgresBlogIdeaRepository(BlogIdeaRepository):
             values["technical_review_status"] = payload.technical_review_status
         if payload.marketing_status is not None:
             values["marketing_status"] = payload.marketing_status
+        if payload.scheduled_at is not None:
+            values["scheduled_at"] = payload.scheduled_at
 
         with self._engine.begin() as conn:
             conn.execute(
