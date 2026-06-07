@@ -131,7 +131,7 @@ def create_seo_analytics_routes(
         published.sort(key=lambda p: p.published_at or datetime.min.replace(tzinfo=UTC))
 
         # Get all blog ideas with marketing metadata
-        all_ideas = ideas_repo.list_all()
+        all_ideas = list(ideas_repo._ideas.values())
 
         # Publish trend
         publish_trend: dict[str, int] = {}
@@ -190,7 +190,7 @@ def create_seo_analytics_routes(
         ideas_repo = blog_idea_repository or BlogIdeaRepository()
 
         all_posts = blog_repo.list_all()
-        all_ideas = ideas_repo.list_all()
+        all_ideas = list(ideas_repo._ideas.values())
 
         # Map ideas to their posts via published_blog_post_id
         idea_by_post_id = {
@@ -242,7 +242,7 @@ def create_seo_analytics_routes(
         ]
 
         # Keywords from marketing metadata
-        all_ideas = ideas_repo.list_all()
+        all_ideas = list(ideas_repo._ideas.values())
         keyword_counts: dict[str, int] = {}
         for idea in all_ideas:
             if idea.marketing_metadata:
