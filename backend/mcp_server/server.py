@@ -304,12 +304,40 @@ def _resolve_table(name: str) -> Any:
 def get_project_context(project_name: str = "default") -> str:
     """Get the project context for generating a blog idea.
 
+    Queries the projects database table for real project data.
+    Falls back to hardcoded fixture data if the DB is unavailable.
+
     Args:
         project_name: The project name or "default" for the main project.
 
     Returns:
         A formatted string with project context details.
     """
+    # Try real DB first
+    if not _IN_MEMORY_FALLBACK and _engine is not None:
+        try:
+            from backend.app.database import projects as projects_table
+
+            with _engine.begin() as conn:
+                row = conn.execute(
+                    select(
+                        projects_table.c.title,
+                        projects_table.c.description,
+                        projects_table.c.content_markdown,
+                    )
+                    .where(projects_table.c.title.ilike(f"%{project_name}%"))
+                    .limit(1)
+                ).mappings().first()
+                if row:
+                    return (
+                        f"Project: {row['title']}\n"
+                        f"Summary: {row['description'] or ''}\n"
+                        f"Content:\n{(row['content_markdown'] or '')[:2000]}"
+                    )
+        except Exception:
+            pass
+
+    # Fallback to hardcoded fixture
     ctx = _PROJECT_CONTEXTS.get(project_name)
     if ctx is None:
         return f"Unknown project: {project_name}"

@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from backend.app.blog_ideas import BlogIdea
 
+if TYPE_CHECKING:
+    from sqlalchemy.engine import Engine as SAEngine
 
-def build_project_context(idea: BlogIdea) -> str:
-    """Assemble idea metadata plus stored source project fields for LLM prompts."""
+
+def _build_source_context(idea: BlogIdea) -> list[str]:
+    """Build base context sections from idea metadata and source project."""
     sections = [
         f"Title: {idea.title}",
         f"Angle: {idea.angle}",
@@ -29,5 +34,34 @@ def build_project_context(idea: BlogIdea) -> str:
             value = ctx.get(key)
             if value:
                 sections.append(f"{label}:\n{value}")
+
+    return sections
+
+
+def build_project_context(idea: BlogIdea, engine: "SAEngine | None" = None) -> str:
+    """Assemble idea metadata plus enriched knowledge for LLM prompts.
+
+    If *engine* is provided, the Knowledge Collector queries the database
+    for related projects, blog posts, showcases, and news to enrich context.
+    """
+    sections = _build_source_context(idea)
+
+    if engine is not None:
+        try:
+            from backend.app.knowledge_collector import KnowledgeService
+
+            project_name = ""
+            if idea.source_project_context:
+                project_name = idea.source_project_context.get("project_name", "")
+
+            if project_name:
+                ks = KnowledgeService(engine)
+                collected = ks.collect_for_project(project_name)
+                enriched = collected.to_prompt_context()
+                if enriched.strip():
+                    sections.append("--- Enriched context (from Knowledge Collector) ---")
+                    sections.append(enriched)
+        except Exception:
+            pass
 
     return "\n\n".join(sections)
