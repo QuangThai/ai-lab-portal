@@ -6,6 +6,7 @@ Prompt registry tests verify template rendering.
 """
 
 import json
+import sys
 
 import pytest
 from pydantic import ValidationError
@@ -439,3 +440,404 @@ class TestLLMBackendSelection:
         assert isinstance(inner, FakeLLMService), (
             f"Expected FakeLLMService, got {type(inner).__name__}"
         )
+
+
+# ===========================================================================
+# RecordingLLMService
+# ===========================================================================
+
+
+class TestRecordingLLMService:
+    """Test the RecordingLLMService wrapper that persists AI run metadata."""
+
+    def make_blog_idea(self) -> BlogIdea:
+        return BlogIdea(
+            title="Recording Test",
+            angle="AI Evaluation",
+            target_reader="CTOs",
+            article_goal="Test recording",
+        )
+
+    def test_delegates_to_inner_service(self) -> None:
+        """RecordingLLMService returns the inner service result."""
+        from backend.app.ai_runs import AiRunRepository
+        from backend.app.llm.recording import RecordingLLMService
+
+        expected = self.make_blog_idea()
+        inner = FakeLLMService(responses={"blog_idea": expected})
+        recorder = AiRunRepository()
+        service = RecordingLLMService(
+            inner=inner,
+            recorder=recorder,
+            entity_type="blog_idea",
+            entity_id="idea_123",
+        )
+
+        result = service.generate("blog_idea", {}, BlogIdea)
+        assert result.title == "Recording Test"
+
+    def test_records_completed_run(self) -> None:
+        """Successful generation records a completed AiRun."""
+        from backend.app.ai_runs import AiRunRepository
+        from backend.app.llm.recording import RecordingLLMService
+
+        expected = self.make_blog_idea()
+        inner = FakeLLMService(responses={"blog_idea": expected})
+        recorder = AiRunRepository()
+        service = RecordingLLMService(
+            inner=inner,
+            recorder=recorder,
+            entity_type="blog_idea",
+            entity_id="idea_001",
+        )
+
+        service.generate("blog_idea", {}, BlogIdea)
+
+        runs = recorder.list_for_entity("blog_idea", "idea_001")
+        assert len(runs) == 1
+        assert runs[0].status == "completed"
+        assert runs[0].prompt_name == "blog_idea"
+        assert runs[0].output_payload["title"] == "Recording Test"
+
+    def test_records_failed_on_llm_generation_error(self) -> None:
+        """Failure from inner service records a failed AiRun and re-raises."""
+        from unittest.mock import MagicMock
+
+        from backend.app.ai_runs import AiRunRepository
+        from backend.app.llm.recording import RecordingLLMService
+
+        inner = MagicMock(spec=FakeLLMService)
+        inner.generate_with_usage.side_effect = LLMGenerationError("API failure")
+        recorder = AiRunRepository()
+        service = RecordingLLMService(
+            inner=inner,
+            recorder=recorder,
+            entity_type="blog_idea",
+            entity_id="idea_002",
+        )
+
+        with pytest.raises(LLMGenerationError, match="API failure"):
+            service.generate("blog_idea", {}, BlogIdea)
+
+        runs = recorder.list_for_entity("blog_idea", "idea_002")
+        assert len(runs) == 1
+        assert runs[0].status == "failed"
+        assert "API failure" in runs[0].error_message
+
+    def test_records_failed_on_generic_exception(self) -> None:
+        """Non-LLMGenerationError exceptions are wrapped and recorded."""
+        from unittest.mock import MagicMock
+
+        from backend.app.ai_runs import AiRunRepository
+        from backend.app.llm.recording import RecordingLLMService
+
+        inner = MagicMock(spec=FakeLLMService)
+        inner.generate_with_usage.side_effect = ValueError("unexpected error")
+        recorder = AiRunRepository()
+        service = RecordingLLMService(
+            inner=inner,
+            recorder=recorder,
+            entity_type="blog_idea",
+            entity_id="idea_003",
+        )
+
+        with pytest.raises(LLMGenerationError, match="unexpected error"):
+            service.generate("blog_idea", {}, BlogIdea)
+
+        runs = recorder.list_for_entity("blog_idea", "idea_003")
+        assert len(runs) == 1
+        assert runs[0].status == "failed"
+        assert "unexpected error" in runs[0].error_message
+
+    def test_records_usage_tokens(self) -> None:
+        """Token usage from inner service is passed to the recorder."""
+        from backend.app.ai_runs import AiRunRepository
+        from backend.app.llm.recording import RecordingLLMService
+
+        expected = self.make_blog_idea()
+        inner = FakeLLMService(responses={"blog_idea": expected})
+        recorder = AiRunRepository()
+        service = RecordingLLMService(
+            inner=inner,
+            recorder=recorder,
+            entity_type="blog_idea",
+            entity_id="idea_004",
+        )
+
+        result, usage = service.generate_with_usage("blog_idea", {}, BlogIdea)
+        assert usage["prompt_tokens"] == 0
+        assert usage["completion_tokens"] == 0
+        assert usage["total_tokens"] == 0
+
+        runs = recorder.list_for_entity("blog_idea", "idea_004")
+        assert len(runs) == 1
+        assert runs[0].prompt_tokens == 0
+        assert runs[0].completion_tokens == 0
+        assert runs[0].total_tokens == 0
+
+    def test_entity_type_and_id_passed_to_recorder(self) -> None:
+        """Entity metadata is stored in the recorded run."""
+        from backend.app.ai_runs import AiRunRepository
+        from backend.app.llm.recording import RecordingLLMService
+
+        expected = self.make_blog_idea()
+        inner = FakeLLMService(responses={"blog_idea": expected})
+        recorder = AiRunRepository()
+        service = RecordingLLMService(
+            inner=inner,
+            recorder=recorder,
+            entity_type="custom_entity",
+            entity_id="custom_001",
+            provider="test_provider",
+            model="test-model",
+        )
+
+        service.generate("blog_idea", {}, BlogIdea)
+
+        runs = recorder.list_for_entity("custom_entity", "custom_001")
+        assert len(runs) == 1
+        assert runs[0].entity_type == "custom_entity"
+        assert runs[0].entity_id == "custom_001"
+        assert runs[0].provider == "test_provider"
+        assert runs[0].model == "test-model"
+
+
+# ===========================================================================
+# LLM Service — generate() helper, edge cases
+# ===========================================================================
+
+
+class TestLLMServiceEdgeCases:
+    """Edge cases for LLMService ABC and FakeLLMService."""
+
+    def test_generate_calls_generate_with_usage(self) -> None:
+        """The generate() convenience method delegates to generate_with_usage."""
+        expected = BlogIdea(
+            title="Delegation Test",
+            angle="Test",
+            target_reader="Devs",
+            article_goal="Test delegation",
+        )
+        service = FakeLLMService(responses={"blog_idea": expected})
+        result = service.generate("blog_idea", {}, BlogIdea)
+        assert result.title == "Delegation Test"
+
+    def test_fake_service_generate_with_usage_returns_tokens(self) -> None:
+        """FakeLLMService.generate_with_usage returns zeroed usage dict."""
+        expected = BlogIdea(
+            title="Token Test",
+            angle="Test",
+            target_reader="Devs",
+            article_goal="Test tokens",
+        )
+        service = FakeLLMService(responses={"blog_idea": expected})
+        result, usage = service.generate_with_usage("blog_idea", {}, BlogIdea)
+        assert isinstance(result, BlogIdea)
+        assert usage == {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+
+    def test_fake_service_raises_on_empty_responses_dict(self) -> None:
+        """Empty responses dict raises LLMGenerationError for any prompt."""
+        service = FakeLLMService(responses={})
+        with pytest.raises(LLMGenerationError, match="No fake response configured"):
+            service.generate("any_prompt", {}, BlogIdea)
+
+    def test_fake_service_error_message_lists_available(self) -> None:
+        """Error message includes available prompt names."""
+        expected = BlogIdea(
+            title="Available",
+            angle="Test",
+            target_reader="Devs",
+            article_goal="Test",
+        )
+        service = FakeLLMService(responses={"blog_idea": expected})
+        with pytest.raises(LLMGenerationError, match="blog_idea"):
+            service.generate("nonexistent", {}, BlogIdea)
+
+
+# ===========================================================================
+# Guardrails
+# ===========================================================================
+
+
+class TestClaimExtractionGuardrail:
+    """Test the claim_extraction_guardrail factory."""
+
+    @pytest.fixture(autouse=True)
+    def _patch_agents_sdk(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Mock the Agents SDK module to avoid import errors."""
+        import types
+
+        mock_module = types.ModuleType("agents")
+
+        class MockGuardrailFunctionOutput:
+            def __init__(self, output_info: str = "", tripwire_triggered: bool = False):
+                self.output_info = output_info
+                self.tripwire_triggered = tripwire_triggered
+
+        class MockOutputGuardrail:
+            def __init__(self, func):
+                self.func = func
+
+        def mock_output_guardrail(*, name: str):
+            def decorator(func):
+                return MockOutputGuardrail(func)
+            return decorator
+
+        mock_module.GuardrailFunctionOutput = MockGuardrailFunctionOutput
+        mock_module.OutputGuardrail = MockOutputGuardrail
+        mock_module.output_guardrail = mock_output_guardrail
+        monkeypatch.setitem(sys.modules, "agents", mock_module)
+
+    def test_returns_output_guardrail(self) -> None:
+        """Factory returns an OutputGuardrail instance."""
+        from unittest.mock import MagicMock
+
+        # Re-import guardrails after patching
+        import importlib
+        from backend.app.llm import guardrails
+        importlib.reload(guardrails)
+
+        claims_repo = MagicMock()
+        ideas_repo = MagicMock()
+
+        result = guardrails.claim_extraction_guardrail(
+            claims_repository=claims_repo,
+            ideas_repository=ideas_repo,
+            idea_id="idea_001",
+        )
+        from agents import OutputGuardrail
+        assert isinstance(result, OutputGuardrail)
+
+    @pytest.mark.asyncio
+    async def test_skips_when_no_idea_id(self) -> None:
+        """Guardrail skips extraction when idea_id is empty."""
+        from unittest.mock import MagicMock
+
+        import importlib
+        from backend.app.llm import guardrails
+        importlib.reload(guardrails)
+
+        claims_repo = MagicMock()
+        ideas_repo = MagicMock()
+
+        guardrail_fn = guardrails.claim_extraction_guardrail(
+            claims_repository=claims_repo,
+            ideas_repository=ideas_repo,
+            idea_id="",
+        )
+        result = await guardrail_fn.func(None, None, None)
+        from agents import GuardrailFunctionOutput
+        assert isinstance(result, GuardrailFunctionOutput)
+        assert result.tripwire_triggered is False
+        assert "no idea_id" in result.output_info
+        ideas_repo.get_by_id.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_skips_when_idea_not_found(self) -> None:
+        """Guardrail skips extraction when idea is not found."""
+        from unittest.mock import MagicMock
+
+        import importlib
+        from backend.app.llm import guardrails
+        importlib.reload(guardrails)
+
+        claims_repo = MagicMock()
+        ideas_repo = MagicMock()
+        ideas_repo.get_by_id.return_value = None
+
+        guardrail_fn = guardrails.claim_extraction_guardrail(
+            claims_repository=claims_repo,
+            ideas_repository=ideas_repo,
+            idea_id="missing_idea",
+        )
+        result = await guardrail_fn.func(None, None, None)
+        assert result.tripwire_triggered is False
+        assert "no draft or idea not found" in result.output_info
+
+    @pytest.mark.asyncio
+    async def test_skips_when_draft_markdown_is_none(self) -> None:
+        """Guardrail skips extraction when draft_markdown is None."""
+        from unittest.mock import MagicMock
+
+        import importlib
+        from backend.app.llm import guardrails
+        importlib.reload(guardrails)
+
+        claims_repo = MagicMock()
+        ideas_repo = MagicMock()
+        mock_idea = MagicMock()
+        mock_idea.draft_markdown = None
+        ideas_repo.get_by_id.return_value = mock_idea
+
+        guardrail_fn = guardrails.claim_extraction_guardrail(
+            claims_repository=claims_repo,
+            ideas_repository=ideas_repo,
+            idea_id="idea_no_draft",
+        )
+        result = await guardrail_fn.func(None, None, None)
+        assert result.tripwire_triggered is False
+        assert "no draft or idea not found" in result.output_info
+
+    @pytest.mark.asyncio
+    async def test_extracts_and_stores_claims(self) -> None:
+        """Guardrail extracts claims and stores them via repository."""
+        from unittest.mock import MagicMock, patch
+
+        import importlib
+        from backend.app.llm import guardrails
+        importlib.reload(guardrails)
+
+        claims_repo = MagicMock()
+        ideas_repo = MagicMock()
+        mock_idea = MagicMock()
+        mock_idea.draft_markdown = "# Test\n\nOur AI reduces cost by 80%."
+        mock_idea.id = "idea_001"
+        ideas_repo.get_by_id.return_value = mock_idea
+
+        mock_claims = [{"type": "performance", "text": "reduces cost by 80%"}]
+
+        with patch(
+            "backend.app.blog_claims.heuristic_claims_from_draft",
+            return_value=mock_claims,
+        ):
+            guardrail_fn = guardrails.claim_extraction_guardrail(
+                claims_repository=claims_repo,
+                ideas_repository=ideas_repo,
+                idea_id="idea_001",
+            )
+            result = await guardrail_fn.func(None, None, None)
+
+        assert result.tripwire_triggered is False
+        assert "extracted 1 claims" in result.output_info
+        claims_repo.replace_for_idea.assert_called_once_with("idea_001", mock_claims)
+
+    @pytest.mark.asyncio
+    async def test_skips_when_no_claims_found(self) -> None:
+        """Guardrail skips storage when no claims are extracted."""
+        from unittest.mock import MagicMock, patch
+
+        import importlib
+        from backend.app.llm import guardrails
+        importlib.reload(guardrails)
+
+        claims_repo = MagicMock()
+        ideas_repo = MagicMock()
+        mock_idea = MagicMock()
+        mock_idea.draft_markdown = "Simple draft without claims."
+        mock_idea.id = "idea_002"
+        ideas_repo.get_by_id.return_value = mock_idea
+
+        with patch(
+            "backend.app.blog_claims.heuristic_claims_from_draft",
+            return_value=[],
+        ):
+            guardrail_fn = guardrails.claim_extraction_guardrail(
+                claims_repository=claims_repo,
+                ideas_repository=ideas_repo,
+                idea_id="idea_002",
+            )
+            result = await guardrail_fn.func(None, None, None)
+
+        assert result.tripwire_triggered is False
+        assert "extracted 0 claims" in result.output_info
+        claims_repo.replace_for_idea.assert_not_called()
