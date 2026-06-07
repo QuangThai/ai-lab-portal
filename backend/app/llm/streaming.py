@@ -117,7 +117,7 @@ async def stream_generate(
     try:
         yield _sse_status("starting_agent", f"Starting agent for '{prompt_name}'")
 
-        result = await Runner.run_streamed(
+        result = Runner.run_streamed(  # noqa: sync function, not a coroutine
             agent,
             user,
             hooks=hooks,
