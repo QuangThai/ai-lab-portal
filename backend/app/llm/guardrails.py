@@ -1,56 +1,69 @@
 """Post-generation guardrails for the Agents SDK LLM service (US-095).
 
-Guardrails are registered per-prompt on ``AgentsSDKLLMService`` and run
-after the LLM generates output. They can extract structured data, validate
-output, or trigger side effects.
+Uses native Agents SDK ``@output_guardrail`` decorators so guardrails integrate
+directly with the agent execution pipeline instead of being called manually
+after generation.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-if TYPE_CHECKING:
-    from pydantic import BaseModel
+from agents import GuardrailFunctionOutput, OutputGuardrail, output_guardrail
 
+if TYPE_CHECKING:
     from backend.app.blog_claims import BlogClaimsRepository
-    from backend.app.blog_ideas import BlogIdea, BlogIdeaRepository
+    from backend.app.blog_ideas import BlogIdeaRepository
 
 
 def claim_extraction_guardrail(
     claims_repository: BlogClaimsRepository,
     ideas_repository: BlogIdeaRepository,
-) -> Any:
-    """Create a guardrail that extracts claims from a technical review's draft.
+    idea_id: str,
+) -> OutputGuardrail:
+    """Create a native Agents SDK output guardrail that extracts claims.
 
-    The guardrail is registered for the ``technical_review`` prompt. After
-    the LLM generates a technical review, it reads the associated idea's
-    draft and extracts claims using heuristic pattern matching (no extra
-    LLM call).
+    The guardrail runs after the ``technical_review`` agent generates its
+    output. It reads the associated idea's draft and extracts claims using
+    heuristic pattern matching (no extra LLM call).
+
+    Unlike the previous manual guardrail system, this returns a proper
+    ``OutputGuardrail`` that the SDK executes as part of the agent run.
 
     Args:
         claims_repository: Repository to store extracted claims.
         ideas_repository: Repository to fetch the idea and its draft.
+        idea_id: The blog idea ID passed through from the service's entity_id.
     """
 
-    def _guardrail(output: BaseModel, inputs: dict[str, Any]) -> None:
-        from backend.app.blog_claims import (
-            BlogClaim,
-            claims_from_extraction,
-            heuristic_claims_from_draft,
-        )
-        from backend.app.llm.schemas import ClaimExtractionResult, ExtractedClaim
-
-        idea_id = inputs.get("idea_id", "")
+    @output_guardrail(name="claim_extraction")
+    async def _guardrail(
+        context: Any,
+        agent: Any,
+        output: Any,
+    ) -> GuardrailFunctionOutput:
         if not idea_id:
-            return
+            return GuardrailFunctionOutput(
+                output_info="no idea_id — skipping claim extraction",
+                tripwire_triggered=False,
+            )
 
         idea = ideas_repository.get_by_id(idea_id)
         if idea is None or not idea.draft_markdown:
-            return
+            return GuardrailFunctionOutput(
+                output_info="no draft or idea not found — skipping claim extraction",
+                tripwire_triggered=False,
+            )
 
-        # Extract claims using heuristic (no extra LLM call)
+        from backend.app.blog_claims import heuristic_claims_from_draft
+
         claims = heuristic_claims_from_draft(idea_id, idea.draft_markdown)
         if claims:
             claims_repository.replace_for_idea(idea_id, claims)
+
+        return GuardrailFunctionOutput(
+            output_info=f"extracted {len(claims)} claims from technical review",
+            tripwire_triggered=False,
+        )
 
     return _guardrail

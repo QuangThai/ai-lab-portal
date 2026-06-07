@@ -48,7 +48,17 @@ BLOG_IDEA_PROMPT = PromptTemplate(
         "- Avoid unsupported performance claims.\n"
         "- The target reader is CTOs, product managers, or founders evaluating "
         "AI adoption.\n"
-        "- Write all fields in clear, natural English (no marketing fluff)."
+        "- Write all fields in clear, natural English (no marketing fluff).\n\n"
+        "You have access to internal tools you can use during generation:\n"
+        "- **blog_agent__idea_context**: Get detailed project context information.\n"
+        "  Call this with the project name to fetch full context.\n"
+        "- **blog_agent__idea_status**: Check the current pipeline status of an "
+        "existing idea.\n"
+        "- **blog_agent__search_posts**: Search published blog posts by keyword "
+        "to avoid duplicating existing content.\n"
+        "  Call this before generating to check what has already been published.\n\n"
+        "Use these tools to ground your generation in real project data. "
+        "Do NOT invent project details the tools don't provide."
     ),
     user_template=(
         "Generate 1 blog idea for the following project:\n\n"

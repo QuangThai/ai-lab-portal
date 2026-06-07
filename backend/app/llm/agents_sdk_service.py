@@ -12,6 +12,13 @@ Key design decisions:
 - **Synchronous API**: Celery workers are not async-native, so we use
   ``Runner.run_sync()`` and disable tracing by default (agents SDK tracing
   can be enabled independently via the env).
+- **Native output guardrails**: Guardrails use the Agents SDK's
+  ``@output_guardrail`` decorator and are passed directly to
+  ``Agent(output_guardrails=[...])``.
+- **Native lifecycle hooks**: ``AiRunTimingHooks`` replace the
+  ``RecordingLLMService`` wrapper pattern. The hooks track per-agent and
+  per-LLM-call timing, and ``generate_with_usage`` records the combined
+  timing + result data to ``AiRunRepository``.
 - **Token usage**: The Agents SDK returns token usage on ``result.usage``.
 - **Backward compatible**: Output shape (Pydantic model) is identical to
   ``OpenAILLMService``, so callers see no difference.
@@ -19,17 +26,21 @@ Key design decisions:
 
 from __future__ import annotations
 
+import time
 from typing import TYPE_CHECKING, Any
 
-from agents import Agent, Runner, set_tracing_disabled
+from agents import Agent, OutputGuardrail, Runner, set_tracing_disabled
+from agents.mcp import MCPServer
 from agents import trace as agents_trace
 from agents.run import RunConfig
 from pydantic import BaseModel
 
+from backend.app.llm.hooks import AiRunTimingHooks
 from backend.app.llm.prompts import PROMPT_REGISTRY
 from backend.app.llm.service import LLMGenerationError, LLMService
 
 if TYPE_CHECKING:
+    from backend.app.ai_runs import AiRunRepository
     from backend.app.llm.sessions import AgentSessionStore
 
 # Tracing is disabled globally by default. When using the Agents SDK backend,
@@ -43,6 +54,12 @@ class AgentsSDKLLMService(LLMService):
 
     Each call to ``generate_with_usage`` creates an ``Agent`` on the fly from
     the prompt registry entry and runs it synchronously via ``Runner.run_sync``.
+    Native Agents SDK output guardrails and lifecycle hooks are passed to the
+    Agent and Runner respectively.
+
+    When a recorder is provided, the service records run metadata to
+    ``AiRunRepository`` using timing data from ``AiRunTimingHooks`` combined
+    with result data (usage, output, trace_id) from ``Runner.run_sync``.
 
     Args:
         api_key: OpenAI API key.
@@ -55,27 +72,55 @@ class AgentsSDKLLMService(LLMService):
         model: str = "gpt-4o",
         session_store: AgentSessionStore | None = None,
         entity_id: str | None = None,
+        recorder: AiRunRepository | None = None,
+        entity_type: str = "",
+        provider: str = "agents_sdk",
+        mcp_servers: list[MCPServer] | None = None,
     ) -> None:
         self._api_key = api_key
         self._model = model
         self._session_store = session_store
         self._entity_id = entity_id
-        self._guardrails: dict[
-            str, list[Any]
-        ] = {}  # prompt_name -> list of guardrails
+        self._recorder = recorder
+        self._entity_type = entity_type
+        self._provider = provider
+        self._mcp_servers = mcp_servers
+        # Maps prompt_name -> list of native OutputGuardrail objects
+        self._output_guardrails: dict[str, list[OutputGuardrail]] = {}
+
+    # ── Guardrail registration ──────────────────────────────────────────
+
+    def add_output_guardrail(self, prompt_name: str, guardrail: OutputGuardrail) -> None:
+        """Register a native Agents SDK output guardrail for a prompt.
+
+        The guardrail will be passed to ``Agent(output_guardrails=...)`` on
+        the next ``generate_with_usage`` call for this prompt name.
+
+        Args:
+            prompt_name: Key into ``PROMPT_REGISTRY``.
+            guardrail: An ``OutputGuardrail`` created via ``@output_guardrail``.
+        """
+        if prompt_name not in self._output_guardrails:
+            self._output_guardrails[prompt_name] = []
+        self._output_guardrails[prompt_name].append(guardrail)
 
     def add_guardrail(self, prompt_name: str, guardrail: Any) -> None:
-        """Register a post-generation hook for a prompt."""
-        if prompt_name not in self._guardrails:
-            self._guardrails[prompt_name] = []
-        self._guardrails[prompt_name].append(guardrail)
+        """Deprecated: use ``add_output_guardrail`` instead."""
+        if prompt_name not in self._output_guardrails:
+            self._output_guardrails[prompt_name] = []
+        if isinstance(guardrail, OutputGuardrail):
+            self._output_guardrails[prompt_name].append(guardrail)
+        else:
+            from agents.guardrail import OutputGuardrail as _OG
 
-    def _run_guardrails(self, prompt_name: str, output: Any, inputs: dict[str, Any]) -> None:
-        for guardrail in self._guardrails.get(prompt_name, []):
-            try:
-                guardrail(output, inputs)
-            except Exception:
-                pass
+            self._output_guardrails[prompt_name].append(
+                _OG(
+                    guardrail_function=guardrail,
+                    name=f"{prompt_name}_legacy_guardrail",
+                )
+            )
+
+    # ── Generation ──────────────────────────────────────────────────────
 
     def generate_with_usage(
         self,
@@ -93,12 +138,18 @@ class AgentsSDKLLMService(LLMService):
         system = prompt.system
         user = prompt.user_template.format(**inputs)
 
-        # Create an Agent for this pipeline stage
+        # Collect native output guardrails registered for this prompt
+        prompt_guardrails = self._output_guardrails.get(prompt_name, [])
+
+        # Create an Agent for this pipeline stage with native guardrails
+        # and optional MCP servers for tool access
         agent = Agent(
             name=prompt_name,
             instructions=system,
             model=self._model,
             output_type=output_schema,
+            output_guardrails=prompt_guardrails if prompt_guardrails else None,
+            mcp_servers=self._mcp_servers,
         )
 
         # Enable tracing for this run via RunConfig
@@ -118,6 +169,9 @@ class AgentsSDKLLMService(LLMService):
         if prompt_name in ("draft_writer", "draft_section_writer"):
             run_kwargs["max_tokens"] = 16000
 
+        # Create lifecycle hooks for timing
+        hooks = AiRunTimingHooks()
+
         try:
             with agents_trace(
                 workflow_name=f"blog_{prompt_name}",
@@ -127,10 +181,23 @@ class AgentsSDKLLMService(LLMService):
                 result = Runner.run_sync(
                     agent,
                     user,
+                    hooks=hooks,
                     run_config=run_config,
                     **run_kwargs,
                 )
         except Exception as exc:
+            # Record failure using hooks timing
+            if self._recorder and self._entity_id:
+                self._recorder.record_failed(
+                    prompt_name=prompt_name,
+                    entity_type=self._entity_type,
+                    entity_id=self._entity_id,
+                    provider=self._provider,
+                    model=self._model,
+                    input_payload=inputs,
+                    error_message=str(exc),
+                    latency_ms=hooks.total_ms,
+                )
             raise LLMGenerationError(
                 f"Agents SDK call failed for prompt '{prompt_name}': {exc}"
             ) from exc
@@ -146,7 +213,6 @@ class AgentsSDKLLMService(LLMService):
                     metadata={"prompt_name": prompt_name, "model": self._model},
                 )
             except Exception:
-                # Session save is best-effort; don't break the generation
                 pass
 
         parsed = result.final_output
@@ -156,9 +222,7 @@ class AgentsSDKLLMService(LLMService):
                 f"{type(parsed).__name__}"
             )
 
-        # Run registered post-generation guardrails
-        self._run_guardrails(prompt_name, parsed, inputs)
-
+        # Build usage dict from result
         usage: dict[str, Any] = {}
         if result.usage is not None:
             usage["prompt_tokens"] = result.usage.input_tokens
@@ -166,8 +230,23 @@ class AgentsSDKLLMService(LLMService):
             usage["total_tokens"] = (
                 result.usage.input_tokens + result.usage.output_tokens
             )
-
-        # Include the Agents SDK trace ID so RecordingLLMService can persist it
         usage["trace_id"] = run_config.trace_id
+
+        # Record completed run using hooks timing + result data
+        if self._recorder and self._entity_id:
+            self._recorder.record_completed(
+                prompt_name=prompt_name,
+                entity_type=self._entity_type,
+                entity_id=self._entity_id,
+                provider=self._provider,
+                model=self._model,
+                input_payload=inputs,
+                output_payload=parsed.model_dump(),
+                prompt_tokens=usage.get("prompt_tokens"),
+                completion_tokens=usage.get("completion_tokens"),
+                total_tokens=usage.get("total_tokens"),
+                latency_ms=hooks.total_ms,
+                trace_id=run_config.trace_id,
+            )
 
         return parsed, usage

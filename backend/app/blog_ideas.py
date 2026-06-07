@@ -16,6 +16,7 @@ from typing import Annotated, Any, Literal, cast
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import Engine, insert, select, update
 
@@ -796,6 +797,114 @@ def create_blog_idea_routes(
                 "business_value": payload.business_value,
             },
             settings=settings,
+        )
+
+    # Mount streaming endpoints for all remaining stages (outline, draft,
+    # review, marketing) from the streaming routes module
+    from backend.app.streaming_routes import _build_streaming_router
+
+    streaming = _build_streaming_router(repository, settings)
+    router.include_router(streaming)
+
+    @router.post("/generate-stream/idea")
+    async def generate_idea_stream(
+        payload: BlogIdeaGenerateRequest,
+        _identity: AdminIdentity = Depends(require_identity),
+    ) -> StreamingResponse:
+        """Stream-generated blog idea via Server-Sent Events.
+
+        Returns a ``StreamingResponse`` with SSE events:
+        - ``token``: text delta token
+        - ``status``: lifecycle update
+        - ``result``: final ``BlogIdea`` as JSON with ``saved_id`` and ``redirect_url``
+        - ``error``: error message
+
+        The generated idea is automatically saved to the repository.
+        When ``AI_LAB_LLM_MCP_ENABLED`` is set, MCP tools are available
+        to the agent for context retrieval and content search.
+        Requires ``AI_LAB_LLM_BACKEND=agents_sdk``.
+        """
+        from backend.app.llm.streaming import stream_generate
+        from backend.app.llm.schemas import BlogIdea as BlogIdeaSchema
+        from backend.app.task_support import _build_mcp_servers, ai_run_repository
+
+        recorder = ai_run_repository(settings)
+        mcp_servers = _build_mcp_servers(settings)
+
+        async def event_stream():
+            _result_json: str | None = None
+
+            async for event in stream_generate(
+                prompt_name="blog_idea",
+                inputs={
+                    "project_name": payload.project_name,
+                    "project_summary": payload.project_summary,
+                    "ai_capabilities": payload.ai_capabilities,
+                    "technical_highlights": payload.technical_highlights,
+                    "business_value": payload.business_value,
+                },
+                output_schema=BlogIdeaSchema,
+                model=settings.llm_model,
+                recorder=recorder,
+                entity_id="streaming:idea",
+                entity_type="blog_idea",
+                provider="agents_sdk",
+                mcp_servers=mcp_servers,
+            ):
+                # Buffer the result event for post-processing
+                if event.startswith('{"type": "result"'):
+                    _result_json = event
+                yield f"data: {event}\n\n"
+
+            # Save the generated idea to the repository
+            if _result_json is not None:
+                try:
+                    import json as _json
+
+                    parsed = _json.loads(_result_json)
+                    idea_data = parsed["data"]
+                    # Build BlogIdeaCreate from the generated output
+                    create_payload = BlogIdeaCreate(
+                        title=idea_data.get("title", "Untitled"),
+                        angle=idea_data.get("angle", ""),
+                        target_reader=idea_data.get("target_reader", ""),
+                        article_goal=idea_data.get("article_goal", ""),
+                        positioning_notes=idea_data.get("positioning_notes", []),
+                    )
+                    context = {
+                        "project_name": payload.project_name,
+                        "project_summary": payload.project_summary,
+                        "ai_capabilities": payload.ai_capabilities,
+                        "technical_highlights": payload.technical_highlights,
+                        "business_value": payload.business_value,
+                    }
+                    saved = repository.add_generated(create_payload, context=context)
+                    saved_id = saved.id
+                    redirect_url = f"/admin/blog-ideas/{saved_id}"
+                    # Emit a final event with the saved ID
+                    final_event = _json.dumps({
+                        "type": "saved",
+                        "idea_id": saved_id,
+                        "redirect_url": redirect_url,
+                    })
+                    yield f"data: {final_event}\n\n"
+                except Exception as exc:
+                    import traceback as _tb
+
+                    err_event = _json.dumps({
+                        "type": "error",
+                        "data": f"Failed to save idea: {exc}",
+                    })
+                    yield f"data: {err_event}\n\n"
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
         )
 
     @router.post("/{idea_id}/generate-outline")
