@@ -29,6 +29,68 @@ from pydantic import BaseModel
 
 from backend.app.llm.prompts import PROMPT_REGISTRY
 
+# ─── Output quality validation ─────────────────────────────────────────────
+
+# Markers that suggest hallucinated or low-quality content when found in drafts.
+_HALLUCINATION_MARKERS: tuple[str, ...] = (
+    "according to internal data",
+    "internal analytics show",
+    "our research indicates",
+    "studies have shown that we",
+    "as demonstrated by our proprietary",
+    "based on our extensive research",
+    "our proprietary technology",
+    "we have developed a revolutionary",
+    "our unique approach",
+    "unprecedented results",
+)
+
+
+MIN_DRAFT_WORDS = 500  # minimum acceptable draft length
+MIN_SECTION_WORDS = 100  # minimum acceptable section length
+
+
+def _validate_output_quality(prompt_name: str, output: BaseModel) -> None:
+    """Validate LLM output quality after parsing.
+
+    Checks draft word count, hallucination markers, and content substance.
+    Raises ``LLMOutputValidationError`` if quality checks fail.
+
+    This is a lightweight guard — not a replacement for the dedicated
+    Technical Review and Claim Extraction stages.
+    """
+    details: dict[str, Any] = {}
+
+    # Check draft word count
+    if hasattr(output, "markdown") and isinstance(output.markdown, str):
+        word_count = len(output.markdown.split())
+        details["word_count"] = word_count
+        min_words = MIN_SECTION_WORDS if prompt_name == "draft_section_writer" else MIN_DRAFT_WORDS
+        if word_count < min_words:
+            raise LLMOutputValidationError(
+                f"Draft too short: {word_count} words (minimum {min_words})",
+                {"word_count": word_count, "minimum": min_words},
+            )
+
+    # Check for hallucination markers in draft content
+    if hasattr(output, "markdown") and isinstance(output.markdown, str):
+        lower = output.markdown.lower()
+        found = [m for m in _HALLUCINATION_MARKERS if m in lower]
+        if found:
+            details["hallucination_markers"] = found
+            raise LLMOutputValidationError(
+                f"Draft contains potential hallucination markers: {found}",
+                {"hallucination_markers": found},
+            )
+
+    # Check technical review has meaningful issues (not auto-approve everything)
+    if hasattr(output, "issues") and hasattr(output, "approval_recommendation"):
+        details["issue_count"] = len(output.issues)
+        # If review approves but found zero issues, flag as suspicious
+        if output.approval_recommendation == "approve" and len(output.issues) == 0:
+            details["empty_approval"] = True
+            # Warning only, not blocking — legitimate for polished drafts
+
 
 class LLMService(ABC):
     """Abstract LLM provider for structured text generation.
@@ -72,6 +134,23 @@ class LLMService(ABC):
 
 class LLMGenerationError(Exception):
     """Raised when the LLM provider fails to generate valid structured output."""
+
+
+class LLMOutputValidationError(Exception):
+    """Raised when the LLM output fails quality validation.
+
+    Attributes:
+        message: Human-readable error description.
+        validation_details: Dict of field-level validation results.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        validation_details: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.validation_details = validation_details or {}
 
 
 class OpenAILLMService(LLMService):
@@ -131,6 +210,9 @@ class OpenAILLMService(LLMService):
             raise LLMGenerationError(
                 f"LLM returned no parsed response for prompt '{prompt_name}'"
             )
+
+        # Post-generation quality validation
+        _validate_output_quality(prompt_name, parsed)
 
         usage = None
         if completion.usage is not None:
