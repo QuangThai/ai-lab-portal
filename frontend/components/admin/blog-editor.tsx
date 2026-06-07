@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useReducer, useRef, useState } from "react";
-import { Globe, Pencil, Save, FileText } from "lucide-react";
+import { Globe, History, Pencil, Save, FileText } from "lucide-react";
 
 import { AdminCard, AdminCardBody, AdminCardSection, AdminWorkflowCard } from "@/components/admin/admin-card";
 import { AdminFormField, AdminInput, AdminTextarea } from "@/components/admin/admin-form";
@@ -13,6 +13,7 @@ import {
   adminStatusPanelClass,
   adminWorkflowStatusClass,
 } from "@/components/admin/admin-ui";
+import { BlogRevisionPanel } from "@/components/admin/blog-revision-panel";
 import { PendingSubmitButton } from "@/components/admin/pending-submit-button";
 import { hasPendingBlogImages, stripBrokenBlogImages } from "@/lib/sanitize-blog-markdown";
 import { uploadImage } from "@/lib/upload";
@@ -134,6 +135,7 @@ export function BlogEditor({
   // editor content regardless of React batching timing.
   const contentMarkdownRef = useRef(initialContentMarkdown);
   useEffect(() => { contentMarkdownRef.current = contentMarkdown; }, [contentMarkdown]);
+  const [revisionPanelOpen, setRevisionPanelOpen] = useState(false);
   const [imageUrl, setImageUrl] = useState(initialImageUrl);
   const [selectedTags, setSelectedTags] = useState<string[]>(initialTagNames.slice(0, 4));
   const [tagDraft, setTagDraft] = useState("");
