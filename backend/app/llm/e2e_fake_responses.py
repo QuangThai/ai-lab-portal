@@ -71,6 +71,7 @@ def build_e2e_fake_llm_service() -> LLMService:
             "blog_idea": _E2E_IDEA,
             "blog_outline": _E2E_OUTLINE,
             "draft_writer": _E2E_DRAFT,
+            "draft_section_writer": _E2E_DRAFT,
             "technical_review": _E2E_REVIEW,
             "marketing_metadata": _E2E_MARKETING,
             "seo_audit": _E2E_SEO_AUDIT,

@@ -12,8 +12,18 @@ from sqlalchemy import Engine, insert, select
 
 from backend.app.database import ai_runs as ai_runs_table
 from backend.app.llm.prompts import PROMPT_REGISTRY
+from backend.app.pricing import compute_cost
 
 AiRunStatus = Literal["completed", "failed"]
+
+
+class CostStats(BaseModel):
+    total_cost: float
+    avg_cost_per_run: float
+    cost_by_model: dict[str, float]
+    cost_by_stage: dict[str, float]
+    cost_by_month: dict[str, float]
+    top_entities: list[dict[str, Any]]
 
 
 class AiRun(BaseModel):
@@ -179,6 +189,57 @@ class AiRunRepository:
             "total_tokens": total_tokens,
             "stages": stage_stats,
         }
+
+    def get_cost_stats(self) -> CostStats:
+        """Return cost breakdown from in-memory runs."""
+        completed = [r for r in self._runs.values() if r.status == "completed"]
+        if not completed:
+            return CostStats(
+                total_cost=0.0,
+                avg_cost_per_run=0.0,
+                cost_by_model={},
+                cost_by_stage={},
+                cost_by_month={},
+                top_entities=[],
+            )
+
+        total_cost = 0.0
+        cost_by_model: dict[str, float] = {}
+        cost_by_stage: dict[str, float] = {}
+        cost_by_month: dict[str, float] = {}
+        entity_costs: dict[str, float] = {}
+
+        for run in completed:
+            cost = compute_cost(run.prompt_tokens, run.completion_tokens, run.model)
+            total_cost += cost
+
+            model_key = run.model or "unknown"
+            cost_by_model[model_key] = cost_by_model.get(model_key, 0.0) + cost
+
+            cost_by_stage[run.prompt_name] = cost_by_stage.get(run.prompt_name, 0.0) + cost
+
+            if run.latency_ms is not None:
+                month_key = run.created_at.strftime("%Y-%m")
+                cost_by_month[month_key] = cost_by_month.get(month_key, 0.0) + cost
+
+            entity_key = f"{run.entity_type}:{run.entity_id}"
+            entity_costs[entity_key] = entity_costs.get(entity_key, 0.0) + cost
+
+        # Top 10 entities
+        sorted_entities = sorted(
+            [{"entity": k, "cost": round(v, 4)} for k, v in entity_costs.items()],
+            key=lambda x: x["cost"],
+            reverse=True,
+        )[:10]
+
+        return CostStats(
+            total_cost=round(total_cost, 4),
+            avg_cost_per_run=round(total_cost / len(completed), 4),
+            cost_by_model={k: round(v, 4) for k, v in cost_by_model.items()},
+            cost_by_stage={k: round(v, 4) for k, v in cost_by_stage.items()},
+            cost_by_month={k: round(v, 4) for k, v in cost_by_month.items()},
+            top_entities=sorted_entities,
+        )
 
     def list_for_entity(self, entity_type: str, entity_id: str) -> list[AiRun]:
         items = [
@@ -365,6 +426,72 @@ class PostgresAiRunRepository(AiRunRepository):
             "total_tokens": total_tokens,
             "stages": stage_stats,
         }
+
+    def get_cost_stats(self) -> CostStats:
+        """Return cost breakdown from DB."""
+        with self._engine.connect() as conn:
+            rows = conn.execute(
+                select(
+                    ai_runs_table.c.model,
+                    ai_runs_table.c.prompt_name,
+                    ai_runs_table.c.prompt_tokens,
+                    ai_runs_table.c.completion_tokens,
+                    ai_runs_table.c.entity_type,
+                    ai_runs_table.c.entity_id,
+                    ai_runs_table.c.created_at,
+                )
+                .where(ai_runs_table.c.status == "completed")
+            ).mappings().all()
+
+        if not rows:
+            return CostStats(
+                total_cost=0.0,
+                avg_cost_per_run=0.0,
+                cost_by_model={},
+                cost_by_stage={},
+                cost_by_month={},
+                top_entities=[],
+            )
+
+        total_cost = 0.0
+        count = 0
+        cost_by_model: dict[str, float] = {}
+        cost_by_stage: dict[str, float] = {}
+        cost_by_month: dict[str, float] = {}
+        entity_costs: dict[str, float] = {}
+
+        for row in rows:
+            cost = compute_cost(
+                row["prompt_tokens"], row["completion_tokens"], row["model"]
+            )
+            total_cost += cost
+            count += 1
+
+            model_key = row["model"] or "unknown"
+            cost_by_model[model_key] = cost_by_model.get(model_key, 0.0) + cost
+            cost_by_stage[row["prompt_name"]] = cost_by_stage.get(row["prompt_name"], 0.0) + cost
+
+            if row["created_at"]:
+                month_key = row["created_at"].strftime("%Y-%m")
+                cost_by_month[month_key] = cost_by_month.get(month_key, 0.0) + cost
+
+            entity_key = f"{row['entity_type']}:{row['entity_id']}"
+            entity_costs[entity_key] = entity_costs.get(entity_key, 0.0) + cost
+
+        sorted_entities = sorted(
+            [{"entity": k, "cost": round(v, 4)} for k, v in entity_costs.items()],
+            key=lambda x: x["cost"],
+            reverse=True,
+        )[:10]
+
+        return CostStats(
+            total_cost=round(total_cost, 4),
+            avg_cost_per_run=round(total_cost / count, 4) if count else 0.0,
+            cost_by_model={k: round(v, 4) for k, v in cost_by_model.items()},
+            cost_by_stage={k: round(v, 4) for k, v in cost_by_stage.items()},
+            cost_by_month={k: round(v, 4) for k, v in cost_by_month.items()},
+            top_entities=sorted_entities,
+        )
 
     def list_for_entity(self, entity_type: str, entity_id: str) -> list[AiRun]:
         return self._execute_select(

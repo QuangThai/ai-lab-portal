@@ -168,6 +168,9 @@ class BlogIdeaSummary(BaseModel):
     technical_review_status: str | None = None
     marketing_status: str | None = None
     seo_audit_status: str | None = None
+    marketing_metadata: dict[str, Any] | None = None
+    scheduled_at: datetime | None = None
+    published_blog_post_id: str | None = None
     created_at: datetime
 
 
@@ -196,6 +199,9 @@ class BlogIdeaRepository:
                 technical_review_status=i.technical_review_status,
                 marketing_status=i.marketing_status,
                 seo_audit_status=i.seo_audit_status,
+                scheduled_at=i.scheduled_at,
+                published_blog_post_id=i.published_blog_post_id,
+                marketing_metadata=i.marketing_metadata,
                 created_at=i.created_at,
             )
             for i in ideas
@@ -378,10 +384,23 @@ class PostgresBlogIdeaRepository(BlogIdeaRepository):
                     blog_ideas_table.c.technical_review_status,
                     blog_ideas_table.c.marketing_status,
                     blog_ideas_table.c.seo_audit_status,
+                    blog_ideas_table.c.scheduled_at,
+                    blog_ideas_table.c.published_blog_post_id,
+                    blog_ideas_table.c.marketing_metadata,
                     blog_ideas_table.c.created_at,
                 ).order_by(blog_ideas_table.c.created_at.desc())
             ).mappings()
-            return [BlogIdeaSummary(**row) for row in rows]
+            result: list[BlogIdeaSummary] = []
+            for row in rows:
+                d = dict(row)
+                # Parse JSON text columns to Python objects
+                if isinstance(d.get("marketing_metadata"), str):
+                    try:
+                        d["marketing_metadata"] = json.loads(d["marketing_metadata"])
+                    except (json.JSONDecodeError, TypeError):
+                        d["marketing_metadata"] = None
+                result.append(BlogIdeaSummary(**d))
+            return result
 
     def get_by_id(self, idea_id: str) -> BlogIdea | None:
         with self._engine.connect() as conn:
