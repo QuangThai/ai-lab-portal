@@ -102,6 +102,7 @@ from backend.app.blog_series import (
     create_blog_series_public_routes,
     create_blog_series_post_routes,
 )
+from backend.app.pipeline_dashboard import create_pipeline_dashboard_routes
 from backend.app.seo_analytics import create_seo_analytics_routes
 from backend.app.content_calendar import create_content_calendar_routes
 from backend.app.news_submitted_links import (
@@ -151,6 +152,8 @@ from backend.app.projects import (
     ProjectSummary,
     ProjectUpdate,
 )
+from backend.app.admin_seed import create_admin_seed_router
+from backend.app.pipeline_runner import create_pipeline_runner_router
 
 
 def health(request: Request) -> dict[str, object]:
@@ -535,6 +538,9 @@ def create_app(
             blog_repository=repository,
             blog_idea_repository=ideas_repo,
         )
+    )
+    app.include_router(
+        create_pipeline_runner_router(resolved_settings)
     )
 
     def record_showcase_audit(
@@ -1017,6 +1023,18 @@ def create_app(
             "comments_total": comment_count,
             "recent_activity": recent_activity,
         }
+
+    # Admin seed routes (content seeding for demo/tour)
+    seed_router = create_admin_seed_router(resolved_settings)
+    app.include_router(seed_router)
+
+    # Pipeline dashboard routes
+    pipeline_router = create_pipeline_dashboard_routes(
+        resolved_settings,
+        blog_idea_repository=ideas_repo,
+        blog_repository=repository,
+    )
+    app.include_router(pipeline_router)
 
     return app
 
