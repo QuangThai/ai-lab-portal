@@ -1,0 +1,11 @@
+# Backend Docker build context: exclude dev/test artifacts
+.git
+.env
+.env.*.local
+.venv
+venv
+__pycache__
+.pytest_cache
+node_modules
+frontend
+.harness

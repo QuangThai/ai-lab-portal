@@ -17,13 +17,20 @@ WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
 COPY frontend/package.json frontend/package-lock.json ./
+COPY frontend/scripts/ ./scripts/
 # Use npm install instead of npm ci because the lock file generated on Windows
 # does not resolve wasm32-wasi platform-specific dependencies (emnapi runtime/core).
 # npm install re-resolves these on the build platform (linux/amd64).
-RUN npm install
+# --ignore-scripts prevents prepare hook from failing (../scripts reference).
+# Run the postinstall hook manually after install.
+RUN npm install --legacy-peer-deps --ignore-scripts && \
+    node scripts/ensure-better-auth-sso-stub.mjs
 
 # --- development: used by compose.yaml full Docker stack ---
 FROM base AS development
+
+# Copy root-level scripts (dev.cjs references ../scripts/)
+COPY scripts/ /scripts/
 
 COPY frontend ./
 

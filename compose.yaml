@@ -35,7 +35,7 @@ services:
       AI_LAB_SERVICE_NAME: ${AI_LAB_SERVICE_NAME:-ai-lab-portal-api}
       AI_LAB_DATABASE_URL: ${DOCKER_AI_LAB_DATABASE_URL:-postgresql+psycopg://ai_lab:ai_lab_dev_password@postgres:5432/ai_lab_portal}
       AI_LAB_REDIS_URL: ${DOCKER_AI_LAB_REDIS_URL:-redis://redis:6379/0}
-      AI_LAB_ADMIN_BOUNDARY_SECRET: ${AI_LAB_ADMIN_BOUNDARY_SECRET:-replace-with-shared-server-secret-at-least-32-random-characters}
+      AI_LAB_ADMIN_BOUNDARY_SECRET: ${AI_LAB_ADMIN_BOUNDARY_SECRET:-e2e-test-admin-boundary-secret-at-least-32-chars}
       AI_LAB_LLM_OPENAI_API_KEY: ${AI_LAB_LLM_OPENAI_API_KEY:-}
       AI_LAB_LLM_MODEL: ${AI_LAB_LLM_MODEL:-gpt-4o}
     volumes:
@@ -43,7 +43,7 @@ services:
       - ./pyproject.toml:/app/pyproject.toml
     command: >
       sh -c "python -m alembic -c backend/alembic.ini upgrade head &&
-             python -m uvicorn backend.app.main:create_app --factory --host 0.0.0.0 --port 8000 --reload"
+             python -m uvicorn backend.app.main:create_app --factory --host 0.0.0.0 --port 8000"
     ports:
       - "${BACKEND_HOST_PORT:-18000}:8000"
     depends_on:
@@ -52,10 +52,11 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()\""]
-      interval: 5s
-      timeout: 5s
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=5).read()\""]
+      interval: 10s
+      timeout: 10s
       retries: 10
+      start_period: 15s
 
   worker:
     build:
@@ -109,7 +110,7 @@ services:
       BETTER_AUTH_API_KEY: ${BETTER_AUTH_API_KEY:-}
       DATABASE_URL: ${DOCKER_DATABASE_URL:-postgresql://ai_lab:ai_lab_dev_password@postgres:5432/ai_lab_portal}
       AUTH_DATABASE_URL: ${DOCKER_AUTH_DATABASE_URL:-postgresql://ai_lab:ai_lab_dev_password@postgres:5432/ai_lab_portal}
-      ADMIN_BOUNDARY_SECRET: ${ADMIN_BOUNDARY_SECRET:-replace-with-shared-server-secret-at-least-32-random-characters}
+      ADMIN_BOUNDARY_SECRET: ${ADMIN_BOUNDARY_SECRET:-e2e-test-admin-boundary-secret-at-least-32-chars}
       BACKEND_INTERNAL_URL: ${DOCKER_BACKEND_INTERNAL_URL:-http://backend:8000}
       NEXT_PUBLIC_SITE_URL: ${DOCKER_NEXT_PUBLIC_SITE_URL:-http://127.0.0.1:13000}
       # Admin seed
@@ -118,8 +119,20 @@ services:
       E2E_ADMIN_PASSWORD: ${E2E_ADMIN_PASSWORD:-test-admin-password-123456}
       E2E_ADMIN_NAME: ${E2E_ADMIN_NAME:-AI Lab Admin}
     volumes:
-      # Persist uploaded images so they survive container rebuilds
-      - ./frontend/public/uploads:/app/public/uploads
+      # Hot-reload: mount frontend source directories individually so node_modules
+      # and .next from the Docker image are preserved (host files are platform-specific).
+      - ./frontend/app:/app/app
+      - ./frontend/components:/app/components
+      - ./frontend/lib:/app/lib
+      - ./frontend/tests:/app/tests
+      - ./frontend/scripts:/app/scripts
+      - ./frontend/public:/app/public
+      - ./frontend/package.json:/app/package.json
+      - ./frontend/next.config.ts:/app/next.config.ts
+      - ./frontend/tsconfig.json:/app/tsconfig.json
+      - ./frontend/postcss.config.mjs:/app/postcss.config.mjs
+      - ./frontend/next-env.d.ts:/app/next-env.d.ts
+      - ./frontend/messages:/app/messages
     entrypoint: ["sh", "scripts/docker-entrypoint.sh"]
     ports:
       - "${FRONTEND_HOST_PORT:-13000}:3000"

@@ -1,0 +1,13 @@
+# Frontend Docker build context: exclude dev/test artifacts
+.git
+.env
+.env.*.local
+node_modules
+.next
+__pycache__
+.pytest_cache
+.venv
+backend
+.harness
+frontend/__tests__
+frontend/tests
