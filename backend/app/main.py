@@ -35,12 +35,22 @@ from backend.app.page_views import (
 )
 from backend.app.analytics_api import AnalyticsService, create_analytics_routes
 from backend.app.related_posts_routes import create_related_posts_routes
-from backend.app.content_repurpose import FakeContentRepurposeService
+from backend.app.content_repurpose import (
+    FakeContentRepurposeService,
+    LLMContentRepurposeService,
+)
 from backend.app.content_repurpose_routes import create_content_repurpose_routes
-from backend.app.scheduling_agent import FakeSchedulingService
-from backend.app.scheduling_routes import create_scheduling_routes
-from backend.app.seo_optimizer import FakeSeoOptimizerService
+from backend.app.scheduling_agent import (
+    FakeSchedulingService,
+    LLMSchedulingService,
+)
+from backend.app.scheduling_routes import create_blog_idea_scheduling_routes, create_scheduling_routes
+from backend.app.seo_optimizer import (
+    FakeSeoOptimizerService,
+    LLMSeoOptimizerService,
+)
 from backend.app.seo_optimizer_routes import create_seo_optimizer_routes
+from backend.app.llm.service import LLMService, OpenAILLMService
 from backend.app.events import (
     EventRepository,
     InMemoryEventRepository,
@@ -1106,22 +1116,59 @@ def create_app(
     )
     app.include_router(related_router)
 
-    # ── Content Repurpose Agent (uses fake service by default; LLM-backed when API key set) ──
-    repurpose_service = FakeContentRepurposeService()
+    # ── E16 AI Agents ──────────────────────────────────────────────────
+    # These agents use the LLM service when AI_LAB_LLM_OPENAI_API_KEY is set.
+    # Falls back to Fake*Service (deterministic, no LLM calls) for dev/test.
+    # Respects AI_LAB_LLM_BACKEND=agents_sdk for Agents SDK orchestration.
+    _api_key = resolved_settings.llm_openai_api_key.get_secret_value()
+    _e16_llm_service: LLMService | None
+    if _api_key:
+        if resolved_settings.llm_backend == "agents_sdk":
+            from backend.app.llm.agents_sdk_service import AgentsSDKLLMService
+            _e16_llm_service = AgentsSDKLLMService(
+                api_key=_api_key,
+                model=resolved_settings.llm_model,
+                session_store=None,
+            )
+        else:
+            _e16_llm_service = OpenAILLMService(api_key=_api_key, model=resolved_settings.llm_model)
+    else:
+        _e16_llm_service = None
+
+    # ── Content Repurpose Agent (US-107) ──
+    repurpose_service = (
+        LLMContentRepurposeService(_e16_llm_service)
+        if _e16_llm_service
+        else FakeContentRepurposeService()
+    )
     repurpose_router = create_content_repurpose_routes(
         repurpose_service, repository, resolved_settings
     )
     app.include_router(repurpose_router)
 
-    # ── Scheduling Agent ──
-    scheduling_service = FakeSchedulingService()
+    # ── Scheduling Agent (US-108) ──
+    scheduling_service = (
+        LLMSchedulingService(_e16_llm_service, analytics_service)
+        if _e16_llm_service
+        else FakeSchedulingService()
+    )
     scheduling_router = create_scheduling_routes(
         scheduling_service, repository, resolved_settings
     )
     app.include_router(scheduling_router)
 
-    # ── SEO Optimizer Agent ──
-    seo_service = FakeSeoOptimizerService()
+    # ── Blog Idea Scheduling Suggestions (US-108, pre-publish) ──
+    idea_scheduling_router = create_blog_idea_scheduling_routes(
+        scheduling_service, ideas_repo, resolved_settings
+    )
+    app.include_router(idea_scheduling_router)
+
+    # ── SEO Optimizer Agent (US-109) ──
+    seo_service = (
+        LLMSeoOptimizerService(_e16_llm_service)
+        if _e16_llm_service
+        else FakeSeoOptimizerService()
+    )
     seo_router = create_seo_optimizer_routes(
         seo_service, ideas_repo, resolved_settings
     )
