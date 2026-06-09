@@ -464,3 +464,75 @@ test.describe("US-109: SEO auto-optimize agent", () => {
   });
 });
 
+
+// --- US-108 extended: Blog-idea scheduling suggestion UI ---
+
+test.describe("US-108: Blog-idea scheduling suggestion", () => {
+  test("POST /admin/blog-ideas/{id}/suggest-schedule returns suggestion", async ({ context }, testInfo) => {
+    const id = uniqueId("idea-sched", testInfo.workerIndex);
+    const email = `${id}@example.com`;
+    const password = "test-admin-password-123456";
+    const ideaId = `idea_${id}`;
+
+    await signInAdmin(context, email, password);
+    await dbQuery(
+      "insert into blog_ideas (id, title, angle, target_reader, article_goal, positioning_notes, source, status, created_at, updated_at) values ($1, $2, $3, $4, $5, '[]', 'manual', 'approved', now(), now())",
+      [ideaId, `Schedule E2E ${id}`, "Test angle", "Readers", "Test goal"],
+    );
+
+    try {
+      const res = await context.request.post(`/admin/blog-ideas/${ideaId}/suggest-schedule`, {
+        headers: { "Content-Type": "application/json" },
+      });
+      expect(res.ok()).toBe(true);
+      const body = await res.json();
+      expect(body).toHaveProperty("suggested_date");
+      expect(body).toHaveProperty("suggested_time");
+      expect(body).toHaveProperty("rationale");
+      expect(body).toHaveProperty("confidence");
+    } finally {
+      await dbQuery("delete from blog_ideas where id = $1", [ideaId]);
+      await cleanupAdmin(email);
+    }
+  });
+});
+
+// --- US-109 extended: SEO optimize-seo page shows sections with accept/reject ---
+
+test.describe("US-109: SEO optimize-seo page sections", () => {
+  test("optimize-seo page shows 5 sections with accept/reject buttons", async ({ context, page }, testInfo) => {
+    const id = uniqueId("seo-page", testInfo.workerIndex);
+    const email = `${id}@example.com`;
+    const password = "test-admin-password-123456";
+    const ideaId = `idea_${id}`;
+    const title = `SEO Page E2E ${id}`;
+
+    await signInAdmin(context, email, password);
+    await dbQuery(
+      "insert into blog_ideas (id, title, angle, target_reader, article_goal, positioning_notes, source, status, outline_sections, outline_status, draft_markdown, draft_status, technical_review_status, marketing_status, marketing_metadata, seo_audit_status, seo_audit, created_at, updated_at) values ($1, $2, $3, $4, $5, $6, 'manual', 'approved', $7, 'approved', $8, 'approved', 'approved', 'approved', $9, 'approved', $10, now(), now())",
+      [ideaId, title, "SEO test", "Readers", "Test SEO", "[]", JSON.stringify([{ heading: "Section 1" }]), "SEO draft content", JSON.stringify({ seo_title: "Test", meta_description: "Test", social_headline: "Test", social_description: "Test" }), JSON.stringify({ overall_score: 75, approval_recommendation: "approve", issues: [] })],
+    );
+
+    try {
+      await page.goto(`/admin/blog-ideas/${ideaId}/optimize-seo`);
+      await page.waitForLoadState("networkidle");
+
+      // Should see the 5 section headings
+      await expect(page.getByText("Title")).toBeVisible({ timeout: 10000 });
+      await expect(page.getByText("Meta Description")).toBeVisible();
+      await expect(page.getByText("Heading Structure")).toBeVisible();
+      await expect(page.getByText("Internal Links")).toBeVisible();
+      await expect(page.getByText("Keyword Placement")).toBeVisible();
+
+      // Should see accept/reject buttons
+      await expect(page.getByRole("button", { name: /accept/i }).first()).toBeVisible();
+
+      // Click first Reject → should become Accepted
+      await page.getByRole("button", { name: /reject/i }).first().click();
+      await expect(page.getByRole("button", { name: /accepted/i }).first()).toBeVisible();
+    } finally {
+      await dbQuery("delete from blog_ideas where id = $1", [ideaId]);
+      await cleanupAdmin(email);
+    }
+  });
+});
