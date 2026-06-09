@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import pg from "pg";
 
+import { SEED_SHOWCASE_NAME } from "./test-data";
+
 const { Client } = pg;
 const e2eBaseUrl = process.env.E2E_BASE_URL ?? "http://127.0.0.1:13100";
 const e2eDatabaseUrl = process.env.AUTH_DATABASE_URL ?? "postgresql://ai_lab:ai_lab_dev_password@localhost:15432/ai_lab_portal";
@@ -43,15 +45,16 @@ test("public showcase and lab pages render published content", async ({ page }) 
   await page.goto("/showcases");
 
   await expect(page.getByRole("heading", { name: "Practical AI delivery stories." })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Scopelytics" })).toBeVisible();
+  await expect(page.getByRole("link", { name: SEED_SHOWCASE_NAME })).toBeVisible();
 
-  await page.getByRole("link", { name: "Scopelytics" }).click();
-  await expect(page).toHaveURL(/\/showcases\/scopelytics$/);
-  await expect(page.getByRole("heading", { name: "Scopelytics" })).toBeVisible();
+  await page.getByRole("link", { name: SEED_SHOWCASE_NAME }).click();
+  const slug = SEED_SHOWCASE_NAME.toLowerCase();
+  await expect(page).toHaveURL(new RegExp(`/showcases/${slug}$`));
+  await expect(page.getByRole("heading", { name: SEED_SHOWCASE_NAME })).toBeVisible();
 
   await page.goto("/lab");
   await expect(page.getByRole("heading", { name: /Human-reviewed AI engineering/i })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Scopelytics" })).toBeVisible();
+  await expect(page.getByRole("link", { name: SEED_SHOWCASE_NAME })).toBeVisible();
 });
 
 test("public blog pages render published content", async ({ page }) => {

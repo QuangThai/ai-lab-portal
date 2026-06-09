@@ -9,8 +9,16 @@ import {
   waitForIdeaGenerationRedirect,
 } from "./helpers";
 
-const E2E_IDEA_TITLE = "E2E Golden Path Blog Idea";
-const E2E_PUBLIC_SLUG = "e2e-golden-path-blog-idea";
+import {
+  E2E_IDEA_TITLE,
+  E2E_PUBLIC_SLUG,
+  E2E_PROJECT_DESCRIPTION,
+  E2E_PROJECT_CONTENT,
+  FAKE_DRAFT_SNIPPET,
+  FAKE_REVIEW_SNIPPET,
+  FAKE_MARKETING_SNIPPET,
+  e2eProjectSlug,
+} from "./test-data";
 
 test.describe("US-086: AI Blog Agent golden path", () => {
   test.describe.configure({ mode: "serial", timeout: 180_000 });
@@ -23,7 +31,7 @@ test.describe("US-086: AI Blog Agent golden path", () => {
     const email = `${id}@example.com`;
     const password = "test-admin-password-123456";
     const projectId = `project_${id}`;
-    const projectSlug = `e2e-project-${id}`;
+    const projectSlug = e2eProjectSlug(testInfo.workerIndex);
 
     await signInAdmin(context, email, password);
 
@@ -38,8 +46,8 @@ test.describe("US-086: AI Blog Agent golden path", () => {
         projectId,
         projectSlug,
         `E2E Project ${id}`,
-        "Analytics platform for game studios",
-        "## Architecture\nUses embeddings and batch scoring pipelines.",
+        E2E_PROJECT_DESCRIPTION,
+        E2E_PROJECT_CONTENT,
       ],
     );
 
@@ -68,19 +76,19 @@ test.describe("US-086: AI Blog Agent golden path", () => {
 
       // Gate 2: Approve outline → generate draft
       await clickPipelineActionAndWait(page, /Approve & generate draft/i);
-      await expect(page.getByText("Semi-auto keeps humans in the loop").first()).toBeVisible({
+      await expect(page.getByText(FAKE_DRAFT_SNIPPET).first()).toBeVisible({
         timeout: 30_000,
       });
 
       // Gate 3: Approve draft → run technical review
       await clickPipelineActionAndWait(page, /Approve & run review/i);
-      await expect(page.getByText("Risk: low").first()).toBeVisible({
+      await expect(page.getByText(FAKE_REVIEW_SNIPPET).first()).toBeVisible({
         timeout: 30_000,
       });
 
       // Gate 4: Accept review → generate marketing metadata
       await clickPipelineActionAndWait(page, /Accept & generate marketing/i);
-      await expect(page.getByText("SEO Title").first()).toBeVisible({ timeout: 30_000 });
+      await expect(page.getByText(FAKE_MARKETING_SNIPPET).first()).toBeVisible({ timeout: 30_000 });
 
       // Gate 5: Approve marketing → run SEO audit (new stage)
       await clickPipelineActionAndWait(page, /Approve & run SEO audit/i);
@@ -121,7 +129,7 @@ test.describe("US-086: AI Blog Agent golden path", () => {
       await expect(page.getByRole("heading", { name: E2E_IDEA_TITLE })).toBeVisible({
         timeout: 30_000,
       });
-      await expect(page.getByText("Semi-auto keeps humans in the loop").first()).toBeVisible();
+      await expect(page.getByText(FAKE_DRAFT_SNIPPET).first()).toBeVisible();
     } finally {
       if (ideaId) {
         await dbQuery("delete from blog_claims where blog_idea_id = $1", [ideaId]);

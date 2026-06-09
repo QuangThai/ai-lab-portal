@@ -47,6 +47,7 @@ async function signInAdmin(context: BrowserContext, email: string, password: str
 
 async function cleanupAdmin(email: string) {
   await dbQuery('delete from notifications where user_id in (select id from "user" where email = $1)', [email]);
+  await dbQuery('delete from user_profiles where user_id in (select id from "user" where email = $1)', [email]);
   await dbQuery('delete from session where "userId" in (select id from "user" where email = $1)', [email]);
   await dbQuery('delete from account where "userId" in (select id from "user" where email = $1)', [email]);
   await dbQuery('delete from "user" where email = $1', [email]);

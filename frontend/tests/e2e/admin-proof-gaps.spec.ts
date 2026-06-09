@@ -331,3 +331,136 @@ test.describe("US-032: Publish approved blog idea to CMS", () => {
   });
 });
 
+// --- US-103/104: Page view tracking + Analytics dashboard ---
+
+test.describe("US-103/104: Page view tracking and analytics dashboard", () => {
+  test("POST /api/page-view records a view", async ({ context }) => {
+    const res = await context.request.post("/api/page-view", {
+      data: {
+        path: "/e2e-test",
+        session_id: "e2e-session-1",
+        referrer: "https://example.com",
+        viewport_width: 1920,
+        viewport_height: 1080,
+      },
+    });
+    expect(res.ok()).toBe(true);
+    const body = await res.json();
+    expect(body).toHaveProperty("ok", true);
+  });
+
+  test("analytics dashboard renders stat cards for signed-in admin", async ({ context, page }, testInfo) => {
+    const id = uniqueId("analytics", testInfo.workerIndex);
+    const email = `${id}@example.com`;
+    const password = "test-admin-password-123456";
+    await signInAdmin(context, email, password);
+    try {
+      await page.goto("/admin/analytics");
+      await expect(page.getByText("All time")).toBeVisible({ timeout: 10000 });
+      await expect(page.getByText("Last 30 days")).toBeVisible();
+      await expect(page.getByText("Unique visitors")).toBeVisible();
+    } finally {
+      await cleanupAdmin(email);
+    }
+  });
+});
+
+// --- US-106: Event tracking ---
+
+test.describe("US-106: Event tracking", () => {
+  test("POST /api/track-event records an event", async ({ context }) => {
+    const res = await context.request.post("/api/track-event", {
+      data: {
+        path: "/e2e-test",
+        event_type: "click",
+        session_id: "e2e-session-1",
+      },
+    });
+    expect(res.ok()).toBe(true);
+    const body = await res.json();
+    expect(body).toHaveProperty("ok", true);
+  });
+});
+
+// --- US-107: Content repurpose agent admin UI ---
+
+test.describe("US-107: Content repurpose agent", () => {
+  test("repurpose button visible for published blog posts", async ({ context, page }, testInfo) => {
+    const id = uniqueId("repurpose", testInfo.workerIndex);
+    const email = `${id}@example.com`;
+    const password = "test-admin-password-123456";
+    const slug = `repurpose-e2e-${id}`;
+    const postId = `post_${id}`;
+    await signInAdmin(context, email, password);
+    await dbQuery(
+      "insert into blog_posts (id, slug, title, excerpt, author_name, status, published_at, content_markdown) values ($1, $2, $3, $4, $5, 'published', now(), $6)",
+      [postId, slug, `Repurpose E2E ${id}`, "E2E test post for repurpose", "AI Lab", "# E2E Test\nContent here."],
+    );
+    try {
+      await page.goto("/admin/blog");
+      await expect(page.getByRole("link", { name: /repurpose/i }).first()).toBeVisible({ timeout: 10000 });
+    } finally {
+      await dbQuery("delete from blog_posts where id = $1", [postId]);
+      await cleanupAdmin(email);
+    }
+  });
+});
+
+// --- US-108: Auto-scheduling agent ---
+
+test.describe("US-108: Auto-scheduling agent", () => {
+  test("POST /admin/blog-posts/{id}/suggest-schedule returns suggestion", async ({ context }, testInfo) => {
+    const id = uniqueId("schedule", testInfo.workerIndex);
+    const email = `${id}@example.com`;
+    const password = "test-admin-password-123456";
+    const postId = `post_${id}`;
+    const slug = `schedule-e2e-${id}`;
+    await signInAdmin(context, email, password);
+    await dbQuery(
+      "insert into blog_posts (id, slug, title, excerpt, author_name, status, published_at, content_markdown) values ($1, $2, $3, $4, $5, 'published', now(), $6)",
+      [postId, slug, `Schedule E2E ${id}`, "E2E test for scheduling", "AI Lab", "# Test"],
+    );
+    try {
+      const res = await context.request.post(`/admin/blog-posts/${postId}/suggest-schedule`, {
+        headers: { "Content-Type": "application/json" },
+      });
+      expect(res.ok()).toBe(true);
+      const body = await res.json();
+      expect(body).toHaveProperty("suggested_date");
+      expect(body).toHaveProperty("suggested_time");
+      expect(body).toHaveProperty("rationale");
+      expect(body).toHaveProperty("confidence");
+    } finally {
+      await dbQuery("delete from blog_posts where id = $1", [postId]);
+      await cleanupAdmin(email);
+    }
+  });
+});
+
+// --- US-109: SEO auto-optimize agent ---
+
+test.describe("US-109: SEO auto-optimize agent", () => {
+  test("auto-optimize SEO button visible after SEO audit approved", async ({ context, page }, testInfo) => {
+    const id = uniqueId("seo-opt", testInfo.workerIndex);
+    const email = `${id}@example.com`;
+    const password = "test-admin-password-123456";
+    const ideaId = `idea_${id}`;
+    const title = `SEO Opt E2E ${id}`;
+
+    await signInAdmin(context, email, password);
+    await dbQuery(
+      "insert into blog_ideas (id, title, angle, target_reader, article_goal, positioning_notes, source, status, outline_sections, outline_status, draft_markdown, draft_status, technical_review_status, marketing_status, marketing_metadata, seo_audit_status, seo_audit, created_at, updated_at) values ($1, $2, $3, $4, $5, $6, 'manual', 'approved', $7, 'approved', $8, 'approved', 'approved', 'approved', $9, 'approved', $10, now(), now())",
+      [ideaId, title, "SEO test", "Readers", "Test SEO", "[]", JSON.stringify([{ heading: "Section 1" }]), "SEO draft content", JSON.stringify({ seo_title: "Test", meta_description: "Test", social_headline: "Test", social_description: "Test" }), JSON.stringify({ overall_score: 75, approval_recommendation: "approve", issues: [] })],
+    );
+
+    try {
+      await page.goto(`/admin/blog-ideas/${ideaId}`);
+      await expect(page.getByRole("heading", { name: title })).toBeVisible({ timeout: 10000 });
+      await expect(page.getByRole("link", { name: /auto-optimize seo/i })).toBeVisible();
+    } finally {
+      await dbQuery("delete from blog_ideas where id = $1", [ideaId]);
+      await cleanupAdmin(email);
+    }
+  });
+});
+
