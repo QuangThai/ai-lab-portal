@@ -274,6 +274,29 @@ class BlogIdeaRepository:
         self._ideas[idea_id] = updated
         return updated
 
+    def update_fields(self, idea_id: str, values: dict) -> BlogIdea | None:
+        """Update arbitrary fields on a blog idea.
+
+        Args:
+            idea_id: The idea to update.
+            values: Dict of field names to new values.
+                    ``updated_at`` is always set automatically.
+
+        This is a lower-level alternative to ``update()`` for cases where
+        the caller needs to set fields that ``BlogIdeaUpdate`` doesn't cover
+        (e.g. title, draft_markdown, marketing_metadata).
+        """
+        idea = self._ideas.get(idea_id)
+        if idea is None:
+            return None
+        updated = idea.model_copy(deep=True)
+        for key, val in values.items():
+            if hasattr(updated, key) and key != "id":
+                setattr(updated, key, val)
+        updated.updated_at = datetime.now(UTC)
+        self._ideas[idea_id] = updated
+        return updated
+
     def set_outline(
         self,
         idea_id: str,
@@ -500,6 +523,33 @@ class PostgresBlogIdeaRepository(BlogIdeaRepository):
                 update(blog_ideas_table)
                 .where(blog_ideas_table.c.id == idea_id)
                 .values(**values)
+            )
+        return self.get_by_id(idea_id)
+
+    def update_fields(self, idea_id: str, values: dict) -> BlogIdea | None:
+        """Update arbitrary fields on a blog idea (Postgres version).
+
+        ``marketing_metadata`` values are JSON-dumped before storage.
+        ``updated_at`` is always overwritten.
+        """
+        existing = self.get_by_id(idea_id)
+        if existing is None:
+            return None
+        db_values: dict = {"updated_at": datetime.now(UTC)}
+        for key, val in values.items():
+            if key == "id":
+                continue
+            if key == "marketing_metadata" and isinstance(val, dict):
+                db_values[key] = json.dumps(val)
+            elif key == "positioning_notes" and isinstance(val, list):
+                db_values[key] = json.dumps(val)
+            else:
+                db_values[key] = val
+        with self._engine.begin() as conn:
+            conn.execute(
+                update(blog_ideas_table)
+                .where(blog_ideas_table.c.id == idea_id)
+                .values(**db_values)
             )
         return self.get_by_id(idea_id)
 
