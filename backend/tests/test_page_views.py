@@ -1,8 +1,14 @@
 """Tests for page view tracking (US-103)."""
 
+from __future__ import annotations
+
+from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 
 import pytest
+import pytest_asyncio
+from fastapi import FastAPI
+from httpx import AsyncClient, ASGITransport
 
 from backend.app.page_views import (
     InMemoryPageViewRepository,
@@ -161,3 +167,81 @@ class TestPageViewModel:
         assert view.id == "pv-1"
         assert view.ip_hash == _hash_ip("127.0.0.1")
         assert view.created_at is not None
+
+
+# ── Integration tests (minimal app, following test_streaming_routes pattern) ──
+
+
+@pytest.fixture
+def page_view_app() -> FastAPI:
+    """Build a minimal FastAPI app with only the page-view router."""
+    from backend.app.page_views import router
+
+    app = FastAPI()
+    app.include_router(router)
+    return app
+
+
+@pytest_asyncio.fixture
+async def pv_client(page_view_app: FastAPI) -> AsyncIterator[AsyncClient]:
+    """Async test client using the minimal page-view app."""
+    transport = ASGITransport(app=page_view_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        yield c
+
+
+@pytest.mark.asyncio
+async def test_api_record_page_view_returns_200(pv_client: AsyncClient) -> None:
+    """POST /api/page-view with full payload returns 200."""
+    response = await pv_client.post(
+        "/api/page-view",
+        json={
+            "path": "/integration-test",
+            "session_id": "int-test-session",
+            "referrer": "https://example.com",
+            "viewport_width": 1920,
+            "viewport_height": 1080,
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["ok"] is True
+    assert data["throttled"] is False
+
+
+@pytest.mark.asyncio
+async def test_api_record_page_view_minimal_payload(pv_client: AsyncClient) -> None:
+    """POST /api/page-view with only required fields returns 200."""
+    response = await pv_client.post(
+        "/api/page-view",
+        json={"path": "/minimal-test", "session_id": "minimal-session"},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["ok"] is True
+    assert data["throttled"] is False
+
+
+@pytest.mark.asyncio
+async def test_api_record_page_view_invalid_payload(pv_client: AsyncClient) -> None:
+    """POST /api/page-view with missing required fields returns 422."""
+    response = await pv_client.post("/api/page-view", json={})
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_api_record_page_view_throttle(pv_client: AsyncClient) -> None:
+    """Same session + path within window should be throttled."""
+    # First request — allowed
+    r1 = await pv_client.post(
+        "/api/page-view",
+        json={"path": "/throttle-test", "session_id": "throttle-session"},
+    )
+    assert r1.json()["throttled"] is False
+
+    # Second request (same session + path, within 30s window) — throttled
+    r2 = await pv_client.post(
+        "/api/page-view",
+        json={"path": "/throttle-test", "session_id": "throttle-session"},
+    )
+    assert r2.json()["throttled"] is True

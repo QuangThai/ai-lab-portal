@@ -1,0 +1,528 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Lab Portal — Architecture</title>
+<script>
+  (function () {
+    const saved = localStorage.getItem('theme');
+    const dark = saved ? saved === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+    document.documentElement.classList.toggle('dark', dark);
+  })();
+</script>
+<style>
+  :root {
+    --bg: #F7F6F2; --surface: #FFFFFF; --surface2: #EDECE6;
+    --ink: #121210; --body: #3A3A36; --muted: #7A7972;
+    --line: #CFCBC0; --line-soft: #E4E1D8;
+    --accent: #2D6A9F; --accent-soft: rgba(45,106,159,0.12);
+    --green: #4A7C59; --green-soft: rgba(74,124,89,0.14);
+    --amber: #B8860B; --amber-soft: rgba(184,134,11,0.14);
+    --violet: #6B5B95; --violet-soft: rgba(107,91,149,0.14);
+    --zone: rgba(18,18,16,0.028); --zone-line: #CFCBC0;
+    --serif: ui-serif, Georgia, "Times New Roman", serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  html.dark {
+    --bg: #121210; --surface: #1C1C1A; --surface2: #272724;
+    --ink: #F7F6F2; --body: #CFCBC0; --muted: #7A7972;
+    --line: #3A3A36; --line-soft: #272724;
+    --accent: #5A9FD4; --accent-soft: rgba(90,159,212,0.16);
+    --green: #7CB08A; --green-soft: rgba(124,176,138,0.18);
+    --amber: #D4A84B; --amber-soft: rgba(212,168,75,0.18);
+    --violet: #9B8BC4; --violet-soft: rgba(155,139,196,0.18);
+    --zone: rgba(247,246,242,0.03); --zone-line: #3A3A36;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background: var(--bg); color: var(--body); font-family: var(--sans);
+    -webkit-font-smoothing: antialiased; display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  .bar {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 12px 20px; border-bottom: 1px solid var(--line-soft); flex: none;
+  }
+  .bar h1 { font-family: var(--serif); font-weight: 500; font-size: 19px; color: var(--ink); letter-spacing: -0.01em; }
+  .bar .sub { font-family: var(--mono); font-size: 10.5px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+  .spacer { flex: 1; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.04em;
+    padding: 5px 11px; border: 1px solid var(--line); border-radius: 999px;
+    background: transparent; color: var(--muted); cursor: pointer; transition: all .15s ease;
+  }
+  .chip:hover { color: var(--ink); border-color: var(--muted); }
+  .chip.on { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+  #themeToggle {
+    font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em;
+    padding: 5px 10px; border: 1px solid var(--line); border-radius: 6px;
+    background: transparent; color: var(--muted); cursor: pointer;
+  }
+  #themeToggle:hover { color: var(--ink); border-color: var(--muted); }
+
+  .stage { flex: 1; position: relative; min-height: 0; }
+  .stage svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+  .zone rect { fill: var(--zone); stroke: var(--zone-line); stroke-width: 1; stroke-dasharray: 5 5; rx: 16; }
+  .zone .ztitle { font-family: var(--mono); font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; fill: var(--muted); }
+  .zone .zsub { font-family: var(--mono); font-size: 10.5px; fill: var(--muted); opacity: 0.75; }
+
+  .node { cursor: pointer; }
+  .node rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; rx: 10; transition: stroke .15s ease, filter .15s ease; }
+  .node:hover rect { stroke: var(--muted); }
+  .node.sel rect { stroke: var(--accent) !important; stroke-width: 2; }
+  .node .t  { font-family: var(--sans); font-size: 14px; font-weight: 600; fill: var(--ink); pointer-events: none; }
+  .node .m  { font-family: var(--mono); font-size: 10.5px; fill: var(--muted); pointer-events: none; }
+  .node .k  { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; fill: var(--accent); pointer-events: none; }
+  .node.gate rect { fill: var(--accent-soft); stroke: var(--accent); }
+  .node.store rect { fill: var(--surface2); }
+  .node.worker rect { fill: var(--green-soft); stroke: var(--green); }
+  .node.ext rect { stroke-dasharray: 6 3; }
+  .node.domain rect { fill: var(--violet-soft); stroke: var(--violet); }
+
+  .edge { stroke: var(--muted); stroke-width: 1.6; fill: none; marker-end: url(#a-mut); transition: opacity .2s ease, stroke .2s ease; }
+  .edge.dash { stroke-dasharray: 5 4; }
+  .edge.ws { stroke-width: 2; }
+  .elbl { font-family: var(--mono); font-size: 10px; fill: var(--muted); transition: opacity .2s ease; }
+
+  .stage.flowing .edge { opacity: 0.13; }
+  .stage.flowing .elbl { opacity: 0.13; }
+  .stage.flowing .node { opacity: 0.30; }
+  .stage.flowing .zone { opacity: 0.45; }
+  .stage.flowing .edge.lit {
+    opacity: 1; stroke: var(--accent); marker-end: url(#a-acc);
+    stroke-dasharray: 7 5; animation: march 0.9s linear infinite;
+  }
+  .stage.flowing .elbl.lit { opacity: 1; fill: var(--accent); }
+  .stage.flowing .node.lit { opacity: 1; }
+  .stage.flowing .node.lit rect { stroke: var(--accent); }
+  @keyframes march { to { stroke-dashoffset: -12; } }
+  @media (prefers-reduced-motion: reduce) { .stage.flowing .edge.lit { animation: none; } }
+
+  .card {
+    position: absolute; max-width: 360px;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 16px; box-shadow: 0 6px 24px rgba(0,0,0,0.08);
+  }
+  #detail { right: 16px; bottom: 16px; width: 340px; }
+  #detail h3 { font-family: var(--serif); font-weight: 500; font-size: 17px; color: var(--ink); margin-bottom: 2px; }
+  #detail .meta { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-bottom: 8px; }
+  #detail p { font-size: 12.5px; line-height: 1.55; }
+  #detail p code, #flowcap code { font-family: var(--mono); font-size: 11px; color: var(--accent); }
+  #flowcap { left: 16px; bottom: 16px; max-width: 460px; display: none; }
+  #flowcap.show { display: block; }
+  #flowcap .fname { font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin-bottom: 6px; }
+  #flowcap ol { margin-left: 18px; }
+  #flowcap li { font-size: 12.5px; line-height: 1.55; }
+  .src { position: absolute; top: 10px; right: 16px; font-family: var(--mono); font-size: 10px; color: var(--muted); opacity: 0.8; }
+  @media (max-width: 880px) {
+    body { overflow: auto; }
+    .stage { min-height: 75vh; }
+    #detail { position: static; width: auto; margin: 10px 16px; }
+    #flowcap { position: static; margin: 0 16px 16px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div>
+    <h1>AI Lab Portal — the stack</h1>
+    <div class="sub">Next.js · FastAPI · Celery · PostgreSQL · Redis</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="chips" id="chips">
+    <button class="chip on" data-flow="all">Overview</button>
+    <button class="chip" data-flow="public">Public read</button>
+    <button class="chip" data-flow="admin">Admin CRUD</button>
+    <button class="chip" data-flow="blog">AI Blog Agent</button>
+    <button class="chip" data-flow="news">News pipeline</button>
+    <button class="chip" data-flow="social">Social</button>
+    <button class="chip" data-flow="mcp">MCP Agent</button>
+  </div>
+  <button id="themeToggle">Theme</button>
+</div>
+
+<div class="stage" id="stage">
+<svg viewBox="0 0 1580 1020" preserveAspectRatio="xMidYMid meet" role="img" aria-label="AI Lab Portal architecture diagram">
+  <defs>
+    <marker id="a-mut" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" style="fill: var(--muted)"/>
+    </marker>
+    <marker id="a-acc" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" style="fill: var(--accent)"/>
+    </marker>
+  </defs>
+
+  <!-- zones -->
+  <g class="zone" id="z-clients">
+    <rect x="30" y="100" width="220" height="520"/>
+    <text class="ztitle" x="50" y="130">Clients</text>
+    <text class="zsub" x="50" y="148">browser · Playwright E2E</text>
+  </g>
+  <g class="zone" id="z-frontend">
+    <rect x="280" y="100" width="360" height="520"/>
+    <text class="ztitle" x="300" y="130">Frontend</text>
+    <text class="zsub" x="300" y="148">frontend/ · Next.js 16 App Router</text>
+  </g>
+  <g class="zone" id="z-backend">
+    <rect x="680" y="100" width="420" height="520"/>
+    <text class="ztitle" x="700" y="130">Backend API</text>
+    <text class="zsub" x="700" y="148">backend/app/ · FastAPI · OpenAPI</text>
+  </g>
+  <g class="zone" id="z-workers">
+    <rect x="680" y="660" width="420" height="200"/>
+    <text class="ztitle" x="700" y="688">Async workers</text>
+    <text class="zsub" x="700" y="706">Celery · Redis broker</text>
+  </g>
+  <g class="zone" id="z-data">
+    <rect x="1140" y="100" width="400" height="520"/>
+    <text class="ztitle" x="1160" y="130">Data &amp; infra</text>
+    <text class="zsub" x="1160" y="148">Docker Compose local stack</text>
+  </g>
+  <g class="zone" id="z-external">
+    <rect x="280" y="660" width="360" height="200"/>
+    <text class="ztitle" x="300" y="688">External providers</text>
+  </g>
+
+  <!-- edges -->
+  <path class="edge" id="e-pub-req" d="M235,210 C 260,210 268,218 295,218"/>
+  <path class="edge" id="e-adm-req" d="M235,340 C 262,340 270,350 295,350"/>
+  <path class="edge" id="e-next-pub" d="M460,218 C 500,218 640,218 695,218"/>
+  <path class="edge" id="e-next-adm" d="M460,350 C 500,350 640,350 695,350"/>
+  <path class="edge" id="e-auth-sess" d="M460,280 C 500,280 560,280 595,280"/>
+  <path class="edge" id="e-boundary" d="M640,350 L 695,350"/>
+  <path class="edge" id="e-pub-api" d="M890,218 L 1165,218"/>
+  <path class="edge" id="e-adm-api" d="M890,350 L 1165,350"/>
+  <path class="edge" id="e-repos-db" d="M1000,430 L 1165,430"/>
+  <path class="edge" id="e-api-enq" d="M890,480 C 890,560 820,620 820,680"/>
+  <path class="edge" id="e-beat-enq" d="M990,700 C 1050,660 1120,560 1240,400"/>
+  <path class="edge" id="e-redis-broker" d="M1100,760 L 1165,500"/>
+  <path class="edge" id="e-worker-db" d="M1000,760 L 1165,430"/>
+  <path class="edge" id="e-worker-llm" d="M820,720 C 620,720 520,720 460,720"/>
+  <path class="edge" id="e-llm-openai" d="M400,720 L 400,760"/>
+  <path class="edge dash" id="e-mcp-db" d="M520,800 C 900,900 1165,480 1165,430"/>
+  <path class="edge dash" id="e-stream" d="M640,420 C 560,420 520,420 460,420"/>
+  <path class="edge" id="e-social" d="M460,480 C 560,480 640,480 695,480"/>
+  <path class="edge dash" id="e-harness" d="M1400,580 L 1400,620"/>
+  <path class="edge" id="e-news-crawl" d="M820,680 C 900,640 1000,600 1100,560"/>
+
+  <!-- edge labels -->
+  <text class="elbl" data-e="e-pub-req" x="248" y="200">GET /blog …</text>
+  <text class="elbl" data-e="e-adm-req" x="248" y="330">/admin/*</text>
+  <text class="elbl" data-e="e-next-pub" x="560" y="206">RSC + fetch</text>
+  <text class="elbl" data-e="e-boundary" x="655" y="340">HMAC headers</text>
+  <text class="elbl" data-e="e-pub-api" x="1020" y="206">public routers</text>
+  <text class="elbl" data-e="e-adm-api" x="1020" y="340">admin routers</text>
+  <text class="elbl" data-e="e-repos-db" x="1070" y="418">SQLAlchemy</text>
+  <text class="elbl" data-e="e-api-enq" x="850" y="580">enqueue job</text>
+  <text class="elbl" data-e="e-redis-broker" x="1120" y="630">broker</text>
+  <text class="elbl" data-e="e-beat-enq" x="1080" y="560">schedule</text>
+  <text class="elbl" data-e="e-worker-llm" x="600" y="708">LLM calls</text>
+  <text class="elbl" data-e="e-stream" x="530" y="408">SSE stream</text>
+  <text class="elbl" data-e="e-news-crawl" x="960" y="610">crawl · extract · score</text>
+
+  <!-- clients -->
+  <g class="node" data-k="visitor">
+    <rect x="55" y="180" width="170" height="80"/>
+    <text class="t" x="75" y="208">Public visitor</text>
+    <text class="m" x="75" y="228">/blog · /ai-news · /projects</text>
+    <text class="m" x="75" y="244">no login required</text>
+  </g>
+  <g class="node" data-k="user">
+    <rect x="55" y="290" width="170" height="80"/>
+    <text class="t" x="75" y="318">Logged-in user</text>
+    <text class="m" x="75" y="338">comments · bookmarks · follows</text>
+    <text class="m" x="75" y="354">Better Auth session</text>
+  </g>
+  <g class="node" data-k="admin">
+    <rect x="55" y="400" width="170" height="80"/>
+    <text class="t" x="75" y="428">Admin</text>
+    <text class="m" x="75" y="448">/admin/* · CMS · review queues</text>
+    <text class="m" x="75" y="464">role = admin</text>
+  </g>
+  <g class="node" data-k="playwright">
+    <rect x="55" y="510" width="170" height="70"/>
+    <text class="t" x="75" y="538">Playwright E2E</text>
+    <text class="m" x="75" y="558">frontend/tests/e2e/</text>
+  </g>
+
+  <!-- frontend -->
+  <g class="node" data-k="next">
+    <rect x="300" y="190" width="160" height="70"/>
+    <text class="t" x="320" y="218">Next.js App</text>
+    <text class="m" x="320" y="238">RSC · server actions</text>
+  </g>
+  <g class="node" data-k="betterauth">
+    <rect x="480" y="190" width="140" height="70"/>
+    <text class="t" x="500" y="218">Better Auth</text>
+    <text class="m" x="500" y="238">session cookie</text>
+  </g>
+  <g class="node gate" data-k="boundary">
+    <rect x="480" y="320" width="140" height="70"/>
+    <text class="t" x="500" y="346">Admin boundary</text>
+    <text class="k" x="500" y="362">signed identity</text>
+    <text class="m" x="500" y="378">fastapi-boundary.ts</text>
+  </g>
+  <g class="node" data-k="pubpages">
+    <rect x="300" y="300" width="160" height="70"/>
+    <text class="t" x="320" y="328">Public pages</text>
+    <text class="m" x="320" y="348">app/blog · ai-news …</text>
+  </g>
+  <g class="node" data-k="adminui">
+    <rect x="300" y="400" width="320" height="70"/>
+    <text class="t" x="320" y="428">Admin UI</text>
+    <text class="m" x="320" y="448">components/admin/ · blog editor · news review · showcases</text>
+  </g>
+  <g class="node" data-k="apiproxy">
+    <rect x="300" y="490" width="320" height="70"/>
+    <text class="t" x="320" y="518">API proxy layer</text>
+    <text class="m" x="320" y="538">lib/admin/safe-fetch · BACKEND_INTERNAL_URL</text>
+  </g>
+
+  <!-- backend -->
+  <g class="node" data-k="fastapi">
+    <rect x="700" y="190" width="180" height="70"/>
+    <text class="t" x="720" y="218">FastAPI</text>
+    <text class="m" x="720" y="238">main.py · OpenAPI /docs</text>
+  </g>
+  <g class="node gate" data-k="admincheck">
+    <rect x="900" y="320" width="180" height="70"/>
+    <text class="t" x="920" y="346">Admin identity</text>
+    <text class="k" x="920" y="362">require_configured</text>
+    <text class="m" x="920" y="378">admin_boundary.py</text>
+  </g>
+  <g class="node" data-k="pubrouters">
+    <rect x="700" y="300" width="180" height="70"/>
+    <text class="t" x="720" y="328">Public routers</text>
+    <text class="m" x="720" y="348">blog · news · projects …</text>
+  </g>
+  <g class="node" data-k="admrouters">
+    <rect x="700" y="400" width="180" height="70"/>
+    <text class="t" x="720" y="428">Admin routers</text>
+    <text class="m" x="720" y="448">CRUD · review · audit</text>
+  </g>
+  <g class="node" data-k="repos">
+    <rect x="900" y="400" width="180" height="70"/>
+    <text class="t" x="920" y="428">Repositories</text>
+    <text class="m" x="920" y="448">domain · SQL encapsulation</text>
+  </g>
+  <g class="node domain" data-k="domains">
+    <rect x="700" y="490" width="380" height="90"/>
+    <text class="t" x="720" y="518">Core domains</text>
+    <text class="m" x="720" y="538">Blog CMS · AI Blog Agent · AI News · Social · Projects</text>
+    <text class="m" x="720" y="556">Showcases · Contact · Notifications · Page views</text>
+  </g>
+  <g class="node" data-k="llm">
+    <rect x="700" y="600" width="180" height="50"/>
+    <text class="t" x="720" y="630">LLM layer</text>
+    <text class="m" x="720" y="644">backend/app/llm/</text>
+  </g>
+
+  <!-- workers -->
+  <g class="node worker" data-k="celery">
+    <rect x="700" y="700" width="180" height="70"/>
+    <text class="t" x="720" y="728">Celery worker</text>
+    <text class="m" x="720" y="748">tasks.py · pipelines</text>
+  </g>
+  <g class="node worker" data-k="beat">
+    <rect x="900" y="700" width="180" height="70"/>
+    <text class="t" x="920" y="728">Celery beat</text>
+    <text class="m" x="920" y="748">scheduler · cron jobs</text>
+  </g>
+
+  <!-- external -->
+  <g class="node ext" data-k="openai">
+    <rect x="300" y="720" width="140" height="60"/>
+    <text class="t" x="320" y="748">OpenAI LLM</text>
+    <text class="m" x="320" y="764">gpt-4o · streaming</text>
+  </g>
+  <g class="node ext" data-k="firecrawl">
+    <rect x="460" y="720" width="140" height="60"/>
+    <text class="t" x="480" y="748">Firecrawl</text>
+    <text class="m" x="480" y="764">article extract (opt)</text>
+  </g>
+
+  <!-- data -->
+  <g class="node store" data-k="postgres">
+    <rect x="1160" y="190" width="360" height="100"/>
+    <text class="t" x="1180" y="220">PostgreSQL</text>
+    <text class="m" x="1180" y="242">pgvector · Alembic migrations</text>
+    <text class="m" x="1180" y="260">blog_posts · news_* · audit_events · ai_runs …</text>
+  </g>
+  <g class="node store" data-k="redis">
+    <rect x="1160" y="320" width="360" height="80"/>
+    <text class="t" x="1180" y="350">Redis</text>
+    <text class="m" x="1180" y="372">Celery broker · session-adjacent cache</text>
+  </g>
+  <g class="node ext" data-k="mcp">
+    <rect x="1160" y="430" width="360" height="80"/>
+    <text class="t" x="1180" y="460">MCP Server</text>
+    <text class="m" x="1180" y="482">backend/mcp_server/ · Agents SDK tools</text>
+  </g>
+  <g class="node store" data-k="harness">
+    <rect x="1160" y="540" width="360" height="70"/>
+    <text class="t" x="1180" y="568">Harness CLI</text>
+    <text class="m" x="1180" y="588">scripts/bin/harness-cli · harness.db</text>
+  </g>
+</svg>
+
+  <div class="src">docs/ARCHITECTURE.md · compose.yaml</div>
+
+  <div class="card" id="flowcap">
+    <div class="fname" id="f-name"></div>
+    <ol id="f-steps"></ol>
+  </div>
+
+  <div class="card" id="detail">
+    <h3 id="d-title">Click a node</h3>
+    <div class="meta" id="d-meta">component detail</div>
+    <p id="d-body">Every box is clickable. The chips above highlight request paths — public read, admin CRUD, AI blog agent, news pipeline, social, and MCP agent.</p>
+  </div>
+</div>
+
+<script>
+const DETAIL = {
+  visitor:   { t:"Public visitor", m:"client · no auth", b:"Browses public routes: <code>/blog</code>, <code>/ai-news</code>, <code>/projects</code>, <code>/showcases</code>. Next.js renders server components and calls the FastAPI public API for published data." },
+  user:      { t:"Logged-in user", m:"client · Better Auth session", b:"Registers and signs in via Better Auth. Next.js reads the session cookie; social features (comments, bookmarks, follows, notifications) send signed user identity headers to FastAPI." },
+  admin:     { t:"Admin", m:"client · admin role", b:"Accesses <code>/admin/*</code> after Better Auth confirms the admin role. All CRUD and review-queue operations pass through the admin boundary — HMAC-signed headers from <code>fastapi-boundary.ts</code>." },
+  playwright:{ t:"Playwright E2E", m:"test · Docker platform", b:"Browser tests in <code>frontend/tests/e2e/</code>. Run against the Docker Compose stack to prove user-visible flows (blog agent golden path, admin proof gaps, social)." },
+  next:      { t:"Next.js App", m:"frontend/ · App Router", b:"Next.js 16 with React Server Components, server actions, and route handlers. Public and admin surfaces live in <code>frontend/app/</code>. Never calls Python domain code directly — only via HTTP API contracts." },
+  betterauth:{ t:"Better Auth", m:"auth · PostgreSQL tables", b:"Session-based identity for admin and public users. Tables migrated via Alembic (<code>better_auth_tables</code>). Configured through <code>BETTER_AUTH_*</code> environment variables." },
+  boundary:  { t:"Admin boundary", m:"frontend/lib/admin/", b:"Signs an HMAC identity payload (<code>x-ai-lab-admin-identity</code> + signature) from the Better Auth session. FastAPI verifies with <code>AI_LAB_ADMIN_BOUNDARY_SECRET</code>. This is the trust boundary between Next.js and Python." },
+  pubpages:  { t:"Public pages", m:"app/blog · app/ai-news …", b:"Server components fetch published content from FastAPI public routers. UI in <code>components/public/</code>. SEO via <code>lib/seo/</code>, JSON-LD, and sitemap." },
+  adminui:   { t:"Admin UI", m:"components/admin/", b:"CMS shell, blog editor (TipTap), showcase/project editors, streaming idea generator, news review, and batch actions. Polls job status for async AI generation." },
+  apiproxy:  { t:"API proxy layer", m:"lib/admin/safe-fetch", b:"Server-side fetch to <code>BACKEND_INTERNAL_URL</code> (Docker: <code>http://backend:8000</code>). Attaches boundary headers for admin routes and user headers for social features." },
+  fastapi:   { t:"FastAPI", m:"backend/app/main.py", b:"REST API with OpenAPI docs. Factory pattern <code>create_app()</code>. Structured JSON logging per request (request_id, user_id, duration_ms). Health check at <code>/health</code>." },
+  admincheck:{ t:"Admin identity gate", m:"admin_boundary.py", b:"<code>require_configured_admin_identity</code> — verifies the HMAC signature on every admin router. Unknown input is parsed through Pydantic at the HTTP boundary before reaching repositories." },
+  pubrouters:{ t:"Public routers", m:"read-only API", b:"Published blog posts, AI news, projects, showcases, page views, and events. No admin identity required; some endpoints accept optional user identity for social features." },
+  admrouters:{ t:"Admin routers", m:"full CRUD + audit", b:"Blog ideas/drafts, news review queue, showcase/project CRUD, contact messages, and analytics dashboards. Every mutation writes to <code>audit_events</code>." },
+  repos:     { t:"Repositories", m:"domain layer", b:"Encapsulate SQL — the inner layer must not depend on FastAPI request objects or the UI. Shared domain rules live here, not in route handlers." },
+  domains:   { t:"Core domains", m:"business modules", b:"<b>Blog CMS</b> — posts, drafts, publish/unpublish.<br><b>AI Blog Agent</b> — ideas → outline → draft → review → publish.<br><b>AI News</b> — RSS crawl, extract, dedup, score, review.<br><b>Social</b> — comments, reactions, bookmarks, follows.<br><b>Projects/Showcases</b> — slugged content." },
+  llm:       { t:"LLM layer", m:"backend/app/llm/", b:"Agents SDK service, streaming, guardrails, prompts, review agents, and news review agent. Fake providers for tests. The <code>ai_runs</code> table tracks generation jobs." },
+  celery:    { t:"Celery worker", m:"async application layer", b:"Long-running pipelines: AI blog generation stages, news RSS crawl/extract/score, user-submitted links, and social X ingest. Orchestrated via <code>tasks.py</code> and <code>pipeline_runner.py</code>." },
+  beat:      { t:"Celery beat", m:"scheduler service", b:"Cron-style periodic tasks: news source crawl schedules and pipeline triggers. Runs as a separate service in Docker Compose (<code>scheduler</code>)." },
+  openai:    { t:"OpenAI LLM", m:"external · gpt-4o", b:"OpenAI-compatible API for structured output, article extraction, scoring, and blog generation. Config: <code>AI_LAB_LLM_OPENAI_API_KEY</code>, <code>AI_LAB_LLM_MODEL</code>." },
+  firecrawl: { t:"Firecrawl", m:"external · optional", b:"Article extraction provider for the news pipeline. A fake provider is available for tests when no API key is configured." },
+  postgres:  { t:"PostgreSQL", m:"primary data store", b:"pgvector image. Alembic migrations in <code>backend/migrations/</code>. Tables include blog_posts, news_sources, news_raw_items, audit_events, ai_runs, user_profiles, notifications, and more." },
+  redis:     { t:"Redis", m:"broker + cache", b:"Celery message broker (<code>AI_LAB_REDIS_URL</code>). Session-adjacent infrastructure. Ports: host 16379 → container 6379." },
+  mcp:       { t:"MCP Server", m:"backend/mcp_server/", b:"FastMCP server exposing DB-backed tools for the Agents SDK: <code>blog_agent__idea_context</code>, <code>blog_agent__idea_status</code>, <code>blog_agent__search_posts</code>. Runs over stdio or SSE." },
+  harness:   { t:"Harness CLI", m:"operational records", b:"Rust CLI at <code>scripts/bin/harness-cli</code>. SQLite <code>harness.db</code> — story matrix, traces, and intake records. Used to audit proof coverage and record agent traces." },
+};
+
+const FLOWS = {
+  public: {
+    name: "Public read — published content",
+    edges: ["e-pub-req","e-next-pub","e-pub-api","e-repos-db"],
+    nodes: ["visitor","pubpages","next","pubrouters","repos","postgres"],
+    steps: [
+      "Visitor opens <code>/blog</code> or <code>/ai-news</code>",
+      "Next.js RSC calls FastAPI public routers",
+      "Repositories query published/read-only models",
+      "PostgreSQL returns data → HTML rendered"
+    ]
+  },
+  admin: {
+    name: "Admin CRUD — signed boundary",
+    edges: ["e-adm-req","e-auth-sess","e-boundary","e-next-adm","e-boundary","e-adm-api","e-repos-db"],
+    nodes: ["admin","betterauth","boundary","adminui","apiproxy","admincheck","admrouters","repos","postgres"],
+    steps: [
+      "Admin signs in via Better Auth → session cookie",
+      "Server action signs HMAC admin identity headers",
+      "FastAPI <code>require_configured_admin_identity</code> verifies",
+      "Admin router → repository → PostgreSQL + audit_events"
+    ]
+  },
+  blog: {
+    name: "AI Blog Agent — async generation",
+    edges: ["e-adm-req","e-next-adm","e-api-enq","e-redis-broker","e-worker-db","e-worker-llm","e-llm-openai"],
+    nodes: ["admin","adminui","admrouters","celery","redis","llm","openai","postgres"],
+    steps: [
+      "Admin triggers generation from the blog editor UI",
+      "FastAPI enqueues a Celery job (outline → draft → review)",
+      "Worker calls the LLM layer + OpenAI",
+      "Results persist to the DB; admin UI polls <code>generation_jobs</code> status"
+    ]
+  },
+  news: {
+    name: "News pipeline — crawl to publish",
+    edges: ["e-beat-enq","e-redis-broker","e-news-crawl","e-worker-db","e-worker-llm"],
+    nodes: ["beat","celery","redis","domains","llm","firecrawl","postgres"],
+    steps: [
+      "Celery beat triggers crawl on schedule",
+      "Worker: RSS crawl → raw items → extraction (Firecrawl/LLM)",
+      "Dedup + scoring → review queue",
+      "Admin approves → publish fields → public API"
+    ]
+  },
+  social: {
+    name: "Social — session-backed interactions",
+    edges: ["e-pub-req","e-auth-sess","e-social","e-repos-db"],
+    nodes: ["user","betterauth","pubpages","pubrouters","repos","postgres"],
+    steps: [
+      "User signs in → Better Auth session",
+      "Comment/bookmark/follow sends signed user identity",
+      "FastAPI public routers with optional user context",
+      "Notifications table for follow and comment-reply events"
+    ]
+  },
+  mcp: {
+    name: "MCP Agent — external agent tools",
+    edges: ["e-mcp-db"],
+    nodes: ["mcp","postgres","llm"],
+    steps: [
+      "Agents SDK connects to the MCP server (stdio/SSE)",
+      "Tools query the DB: idea context, pipeline status, search posts",
+      "Agent uses context to generate or review content",
+      "Bypasses Next.js — direct DB-backed tools"
+    ]
+  }
+};
+
+const stage = document.getElementById('stage');
+const nodes = document.querySelectorAll('.node');
+const edges = document.querySelectorAll('.edge');
+const elbls = document.querySelectorAll('.elbl');
+const chips = document.querySelectorAll('.chip');
+const fcap = document.getElementById('flowcap');
+
+function setFlow(key) {
+  chips.forEach(c => c.classList.toggle('on', c.dataset.flow === key));
+  edges.forEach(e => e.classList.remove('lit'));
+  elbls.forEach(l => l.classList.remove('lit'));
+  nodes.forEach(n => n.classList.remove('lit'));
+  if (key === 'all') { stage.classList.remove('flowing'); fcap.classList.remove('show'); return; }
+  const f = FLOWS[key];
+  if (!f) return;
+  stage.classList.add('flowing');
+  f.edges.forEach(id => document.getElementById(id)?.classList.add('lit'));
+  elbls.forEach(l => { if (f.edges.includes(l.dataset.e)) l.classList.add('lit'); });
+  f.nodes.forEach(k => document.querySelector(`.node[data-k="${k}"]`)?.classList.add('lit'));
+  document.getElementById('f-name').textContent = f.name;
+  document.getElementById('f-steps').innerHTML = f.steps.map(s => `<li>${s}</li>`).join('');
+  fcap.classList.add('show');
+}
+chips.forEach(c => c.addEventListener('click', () => setFlow(c.dataset.flow)));
+
+nodes.forEach(n => n.addEventListener('click', () => {
+  nodes.forEach(x => x.classList.remove('sel'));
+  n.classList.add('sel');
+  const d = DETAIL[n.dataset.k];
+  if (!d) return;
+  document.getElementById('d-title').textContent = d.t;
+  document.getElementById('d-meta').textContent = d.m;
+  document.getElementById('d-body').innerHTML = d.b;
+}));
+
+document.getElementById('themeToggle').addEventListener('click', () => {
+  const dark = !document.documentElement.classList.contains('dark');
+  document.documentElement.classList.toggle('dark', dark);
+  localStorage.setItem('theme', dark ? 'dark' : 'light');
+});
+</script>
+</body>
+</html>
