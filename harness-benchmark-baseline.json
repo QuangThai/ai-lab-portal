@@ -1,0 +1,93 @@
+{
+  "timestamp": "2026-06-22T15:16:01.241073+00:00",
+  "harness_maturity_target": "H4",
+  "dimensions": {
+    "compliance": {
+      "score": 100.0,
+      "files_present": 18,
+      "files_required": 18,
+      "missing_files": [],
+      "by_level": {
+        "H1": {
+          "present": [
+            "AGENTS.md",
+            "docs/HARNESS.md",
+            "docs/FEATURE_INTAKE.md",
+            "docs/ARCHITECTURE.md",
+            "docs/TEST_MATRIX.md",
+            "docs/templates/story.md",
+            "docs/templates/decision.md",
+            "docs/templates/validation-report.md"
+          ],
+          "missing": [],
+          "total": 8,
+          "found": 8
+        },
+        "H2": {
+          "present": [
+            "scripts/bin/harness-cli.exe",
+            "scripts/schema/001-init.sql",
+            "docs/HARNESS_COMPONENTS.md",
+            "docs/HARNESS_MATURITY.md",
+            "docs/TRACE_SPEC.md",
+            "docs/CONTEXT_RULES.md"
+          ],
+          "missing": [],
+          "total": 6,
+          "found": 6
+        },
+        "H3": {
+          "present": [
+            "docs/benchmark-protocol.md",
+            "scripts/harness_benchmark.py",
+            "docs/verification-protocol.md"
+          ],
+          "missing": [],
+          "total": 3,
+          "found": 3
+        },
+        "H4": {
+          "present": [
+            "scripts/verify_all_stories.py"
+          ],
+          "missing": [],
+          "total": 1,
+          "found": 1
+        }
+      }
+    },
+    "trace_quality": {
+      "score": 2.47,
+      "scored": 19,
+      "method": "harness-cli score-trace average"
+    },
+    "lane_accuracy": {
+      "score": 100.0,
+      "accurate": 21,
+      "total": 21
+    },
+    "friction_capture": {
+      "score": 100.0,
+      "captured": 253,
+      "expected": 4
+    },
+    "verification_health": {
+      "score": 100.0,
+      "passing": 111,
+      "with_verify_commands": 111
+    }
+  },
+  "responsibility_scores": {
+    "task_specification": "covered",
+    "context_selection": "covered",
+    "tool_access": "partial",
+    "project_memory": "covered",
+    "task_state": "covered",
+    "observability": "partial",
+    "failure_attribution": "partial",
+    "verification": "covered",
+    "permissions": "partial",
+    "entropy_auditing": "partial",
+    "intervention_recording": "partial"
+  }
+}

@@ -237,7 +237,7 @@ test.describe("US-060: Threaded blog comments", () => {
 
   test("unauthenticated user can see approved comments on public blog detail", async ({ page }) => {
     await page.goto(`/blog/${postSlug}`);
-    await page.waitForTimeout(2000);
+    await page.waitForLoadState("networkidle");
 
     // Comment section should be visible
     const commentSection = page.getByRole("region", { name: /comments/i });

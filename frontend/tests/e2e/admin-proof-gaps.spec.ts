@@ -211,7 +211,7 @@ test.describe("US-026: Admin blog ideas list CRUD", () => {
 
       // Click the Approve button for this idea
       await page.getByRole("button", { name: /Approve & generate outline/i }).first().click();
-      await page.waitForTimeout(500);
+      await page.waitForLoadState("networkidle", { timeout: 15000 });
     } finally {
       await dbQuery("delete from blog_ideas where id = $1", [ideaId]);
       await cleanupAdmin(email);

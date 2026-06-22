@@ -139,7 +139,7 @@ test("authenticated admin can publish test-post content and clean up", async ({ 
     const slugToggle = page.locator("button").filter({ hasText: /URL/ }).first();
     if (await slugToggle.isVisible()) {
       await slugToggle.click();
-      await page.waitForTimeout(100);
+      await expect(page.locator("#blog-slug")).toBeVisible({ timeout: 5000 });
     }
     await page.locator("#blog-slug").fill(slug);
     await page.getByLabel("Excerpt").fill("Practical tips for Pi coding agent packages and Codex coding agent workflows.");

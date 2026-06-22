@@ -98,7 +98,11 @@ test.describe("Content Calendar", () => {
     // Click prev
     const prevBtn = page.locator("button").filter({ has: page.locator("svg.lucide-chevron-left") });
     await prevBtn.click();
-    await page.waitForTimeout(300);
+    // Wait for calendar to re-render with new month
+    await page.waitForFunction((orig: string) => {
+      const h = document.querySelector('[role="heading"]');
+      return h && h.textContent !== orig;
+    }, monthLabel ?? "");
 
     // Month should have changed — check it's different or the same (edge case for January)
     const newMonthLabel = await page.getByRole("heading").filter({ hasText: /January|February|March|April|May|June|July|August|September|October|November|December/ }).first().textContent();
@@ -126,8 +130,6 @@ test.describe("SEO Analytics", () => {
 
     // Section headings (may fallback to empty state)
     await expect(page.getByText("Publish Trend")).toBeVisible();
-    const keywordsOrEmpty = page.locator("text=Keywords & Tags, text=No keywords or tags found.").first();
-    // Either the heading or the empty state should be visible
     await expect(page.getByText("Per-Post SEO Analysis")).toBeVisible();
 
     // Back link
