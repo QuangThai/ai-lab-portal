@@ -606,7 +606,7 @@ export function CalendarClientShell({
               placeholder="Search posts..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 w-44 pl-8 text-xs"
+              className="h-7 w-44 pl-8 py-0 text-xs"
             />
             {searchQuery && (
               <Button
@@ -650,7 +650,7 @@ export function CalendarClientShell({
           {/* Toggle sidebar */}
           <Button
             variant="outline"
-            size="icon-sm"
+            size="icon-xs"
             onClick={() => setSidebarOpen((o) => !o)}
             className={cn(
               sidebarOpen
@@ -671,19 +671,19 @@ export function CalendarClientShell({
           </Button>
           <Button
             variant="outline"
-            size="icon-sm"
+            size="icon-xs"
             onClick={goPrev}
             className="text-muted-foreground"
           >
-            <ChevronLeft className="size-4" />
+            <ChevronLeft className="size-3.5" />
           </Button>
           <Button
             variant="outline"
-            size="icon-sm"
+            size="icon-xs"
             onClick={goNext}
             className="text-muted-foreground"
           >
-            <ChevronRight className="size-4" />
+            <ChevronRight className="size-3.5" />
           </Button>
         </div>
       </div>
