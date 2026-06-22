@@ -29,7 +29,7 @@ export function TourHero() {
       >
         {/* Eyebrow */}
         <motion.span
-          className="mb-6 inline-block rounded-full border border-[var(--color-story-green)]/30 bg-[var(--color-story-green)]/8 px-4 py-1.5 text-[11px] font-medium tracking-wider uppercase text-[var(--color-story-green)]"
+          className="mb-6 inline-block rounded-full border border-brand/30 bg-brand/10 px-4 py-1.5 text-[11px] font-medium tracking-wider uppercase text-brand"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.2, ease: publicEase }}
@@ -39,19 +39,19 @@ export function TourHero() {
 
         {/* Headline */}
         <motion.h1
-          className="font-display text-[clamp(2.8rem,8vw,5.5rem)] leading-[0.88] tracking-[-0.04em] text-[var(--color-charcoal-black)]"
+          className="font-display text-[clamp(2.8rem,8vw,5.5rem)] leading-[0.88] tracking-[-0.04em] text-foreground"
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.7, delay: 0.35, ease: publicEase }}
         >
           See the
           <br />
-          <span className="text-[var(--color-story-green)]">AI Lab</span> in Action
+          <span className="text-brand">AI Lab</span> in Action
         </motion.h1>
 
         {/* Subtitle */}
         <motion.p
-          className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-[var(--color-book-text-gray)]"
+          className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-muted-foreground"
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.5, ease: publicEase }}
@@ -69,7 +69,7 @@ export function TourHero() {
         >
           <Button
             size="lg"
-            className="rounded-full bg-[var(--color-charcoal-black)] px-10 py-6 text-base text-white transition-all duration-300 hover:bg-[var(--color-story-green)] hover:scale-[1.02]"
+            className="rounded-full bg-primary px-10 py-6 text-base text-primary-foreground transition-all duration-300 hover:bg-brand hover:scale-[1.02]"
             onClick={() => document.getElementById("tour-pipeline")?.scrollIntoView({ behavior: "smooth" })}
           >
             Watch the pipeline →
@@ -77,7 +77,7 @@ export function TourHero() {
           <Button
             variant="outline"
             size="lg"
-            className="rounded-full border-[var(--color-book-text-gray)]/30 px-10 py-6 text-base text-[var(--color-charcoal-black)] transition-all duration-300 hover:bg-[var(--color-charcoal-black)]/5"
+            className="rounded-full border-border px-10 py-6 text-base text-foreground transition-all duration-300 hover:bg-accent"
             onClick={() => document.getElementById("tour-examples")?.scrollIntoView({ behavior: "smooth" })}
           >
             See live examples
@@ -101,10 +101,10 @@ export function TourHero() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 1.4 + i * 0.06, duration: 0.4, ease: publicEase }}
             >
-              <div className="flex size-8 items-center justify-center rounded-full border border-[var(--color-book-text-gray)]/20 bg-white/60 text-xs backdrop-blur-sm">
+              <div className="flex size-8 items-center justify-center rounded-full border border-border bg-background/60 text-xs backdrop-blur-sm">
                 {stage.icon}
               </div>
-              <span className="text-[10px] font-medium tracking-wider text-[var(--color-muted-text-gray)] uppercase">
+              <span className="text-[10px] font-medium tracking-wider text-muted-foreground uppercase">
                 {stage.label}
               </span>
             </motion.div>
@@ -118,7 +118,7 @@ export function TourHero() {
         animate={{ y: [0, 6, 0] }}
         transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
       >
-        <svg width="16" height="24" viewBox="0 0 16 24" fill="none" className="text-[var(--color-muted-text-gray)]">
+        <svg width="16" height="24" viewBox="0 0 16 24" fill="none" className="text-muted-foreground">
           <rect x="1" y="1" width="14" height="22" rx="7" stroke="currentColor" strokeWidth="1.5" />
           <circle cx="8" cy="8" r="2" fill="currentColor" />
         </svg>
