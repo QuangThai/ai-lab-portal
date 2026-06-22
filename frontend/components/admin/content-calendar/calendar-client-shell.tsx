@@ -606,7 +606,7 @@ export function CalendarClientShell({
               placeholder="Search posts..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-7 w-44 pl-8 py-0 text-xs"
+              className="h-7 w-44 pl-9 pr-9 py-0 text-xs"
             />
             {searchQuery && (
               <Button
