@@ -1,0 +1,59 @@
+{
+  "nextId": 5,
+  "tasks": [
+    {
+      "id": "1",
+      "subject": "Commit pending changes and push to origin",
+      "description": "Commit modified test_page_views.py + untracked docs (0011, 0012 decision records, architecture-diagram.html). Push 72 commits to origin/main.",
+      "status": "completed",
+      "activeForm": "Committing & pushing",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1781830431971,
+      "updatedAt": 1781830495493
+    },
+    {
+      "id": "2",
+      "subject": "CI/CD pipeline setup",
+      "description": "Set up GitHub Actions CI/CD workflow: lint, typecheck, backend tests, frontend build, E2E tests on push/PR. Optionally add deploy config for staging (VPS/Railway/Vercel). Need to check what infra is available first.",
+      "status": "completed",
+      "activeForm": "Setting up CI/CD pipeline",
+      "metadata": {
+        "agentType": "general-purpose"
+      },
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1781830439145,
+      "updatedAt": 1781831491487
+    },
+    {
+      "id": "3",
+      "subject": "Backlog items: AI agent integration tests + E2E flakiness detection",
+      "description": "Implement backlog items #28 and #29:\n- #28: Integration test coverage for AI agent features (US-107 Content Repurposing, US-108 Auto-Scheduling, US-109 SEO Auto-Optimize). Add test_repurpose.py, test_schedule.py, test_seo_optimize.py following existing patterns in backend/tests/.\n- #29: E2E flakiness regression detection pre-commit check. Script that runs known flaky E2E tests and reports failures before commit.",
+      "status": "completed",
+      "activeForm": "Implementing backlog items",
+      "metadata": {
+        "agentType": "general-purpose"
+      },
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1781830439146,
+      "updatedAt": 1781831491488
+    },
+    {
+      "id": "4",
+      "subject": "UI/UX audit and enhancement",
+      "description": "Load design-taste-frontend skill (or impeccable skill) to audit the public and admin UI. Review typography, spacing, color system, responsive behavior, and overall polish. Implement improvements to reach production-grade visual quality.",
+      "status": "completed",
+      "activeForm": "Auditing and enhancing UI/UX",
+      "metadata": {
+        "agentType": "general-purpose"
+      },
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1781830439147,
+      "updatedAt": 1781831491489
+    }
+  ]
+}

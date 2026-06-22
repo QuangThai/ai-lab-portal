@@ -1,0 +1,17 @@
+{
+  "nextId": 2,
+  "tasks": [
+    {
+      "id": "1",
+      "subject": "Research caching and performance state in ai-lab-portal",
+      "description": "Investigate 6 areas: ARCHITECTURE.md caching mentions, frontend data fetching patterns (blog/ai-news/projects), ISR usage, backend API response caching, docker-deployment.md production readiness, and existing performance budgets/benchmarks.",
+      "status": "completed",
+      "activeForm": "Researching caching and performance state",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780831530455,
+      "updatedAt": 1780831617878
+    }
+  ]
+}

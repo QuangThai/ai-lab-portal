@@ -1,10 +1,11 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { CalendarCheck, ChevronLeft, ChevronRight, GripVertical } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight, GripVertical, Search, X, SlidersHorizontal } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { adminPageStackClass } from "@/components/admin/admin-ui";
+import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
 /* ── Types ── */
@@ -157,6 +158,7 @@ function CalendarGrid({
           return (
             <div
               key={dateStr}
+              data-calendar-cell={dateStr}
               className={cn(
                 "min-h-20 p-1.5 border-r border-b border-border/30 last:border-r-0 cursor-pointer transition-all duration-150",
                 heatmapBg(dayPosts.length, maxCount),
@@ -309,10 +311,8 @@ function MiniTimeline({ scheduled }: { scheduled: CalendarPost[] }) {
 
 function DraggableIdeaCard({
   idea,
-  onScheduled,
 }: {
   idea: CalendarPost;
-  onScheduled: () => void;
 }) {
   const [isDragging, setIsDragging] = useState(false);
 
@@ -350,7 +350,7 @@ function DraggableIdeaCard({
 
 /* ── Client shell ── */
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:18000";
+
 
 export function CalendarClientShell({
   initialData,
@@ -363,8 +363,12 @@ export function CalendarClientShell({
   const [data, setData] = useState(initialData);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [schedulingId, setSchedulingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterStage, setFilterStage] = useState<string>("all");
+  const dragOverDateRef = useRef<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const goPrev = useCallback(
     () => setMonth((m) => (m === 0 ? (setYear((y) => y - 1), 11) : m - 1)),
@@ -388,14 +392,28 @@ export function CalendarClientShell({
     }
   }, [feedback]);
 
-  // Unscheduled ideas (in pipeline, not published, no scheduled_at)
-  const unscheduledIdeas = data.pipeline.filter(
+  // Apply search + filter
+  const filteredPipeline = data.pipeline.filter((p) => {
+    if (searchQuery && !p.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    if (filterStatus === "published" || filterStatus === "scheduled") return false;
+    if (filterStatus === "pipeline" && p.scheduled_at) return false;
+    if (filterStage !== "all" && p.stage !== filterStage) return false;
+    return true;
+  });
+
+  const filteredPublished = data.published.filter((p) => {
+    if (searchQuery && !p.title.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+    return true;
+  });
+
+  // Unscheduled ideas for drag (from filtered pipeline)
+  const unscheduledIdeas = filteredPipeline.filter(
     (p) => p.stage && p.stage !== "published" && !p.scheduled_at,
   );
 
   // Group published posts by date
   const postsByDate = new Map<string, CalendarPost[]>();
-  for (const post of data.published) {
+  for (const post of filteredPublished) {
     if (post.date) {
       const dateKey = post.date.slice(0, 10);
       const existing = postsByDate.get(dateKey) ?? [];
@@ -406,7 +424,7 @@ export function CalendarClientShell({
 
   // Group scheduled items by date
   const scheduledByDate = new Map<string, CalendarPost[]>();
-  for (const item of data.pipeline) {
+  for (const item of filteredPipeline) {
     if (item.scheduled_at) {
       const dateKey = item.scheduled_at.slice(0, 10);
       const existing = scheduledByDate.get(dateKey) ?? [];
@@ -416,14 +434,21 @@ export function CalendarClientShell({
   }
 
   // Stats
-  const publishedCount = data.published.length;
-  const inProgress = data.pipeline.filter(
+  const publishedCount = filteredPublished.length;
+  const inProgress = filteredPipeline.filter(
     (p) => p.stage && p.stage !== "published",
   ).length;
-  const ideas = data.pipeline.length;
-  const scheduledCount = data.scheduled.length;
+  const ideas = filteredPipeline.length;
+  const scheduledCount = data.scheduled.filter((s) =>
+    s.title.toLowerCase().includes(searchQuery.toLowerCase()),
+  ).length;
 
   // ── Drag & Drop handlers ──
+
+  // Sync ref with state so global drop handler always has latest value
+  useEffect(() => {
+    dragOverDateRef.current = dragOverDate;
+  }, [dragOverDate]);
 
   const handleDragOver = useCallback((dateStr: string) => {
     setDragOverDate(dateStr);
@@ -433,29 +458,9 @@ export function CalendarClientShell({
     setDragOverDate(null);
   }, []);
 
-  const handleDrop = useCallback(
-    async (dateStr: string) => {
-      setDragOverDate(null);
-      const scheduledDate = new Date(dateStr + "T12:00:00");
-      const isoStr = scheduledDate.toISOString();
-
-      // We need the idea ID — it's stored in the drag data transfer
-      // But we can't access it here directly since onDrop on the cell doesn't have it.
-      // We'll handle this from the document-level drop event.
-
-      // Actually, the dataTransfer is available on the native event.
-      // Let's restructure: we'll use a ref-based approach.
-    },
-    [],
-  );
-
-  // We handle scheduling via a global drag/drop approach:
-  // The user drags from the sidebar, drops on a calendar date.
-  // We capture the drop on the document level.
-
   const handleSchedule = useCallback(
     async (ideaId: string, dateStr: string) => {
-      setSchedulingId(ideaId);
+      setDragOverDate(null);
       try {
         const scheduledDate = new Date(dateStr + "T12:00:00");
         const res = await fetch(`/admin/blog-ideas/${ideaId}`, {
@@ -474,16 +479,15 @@ export function CalendarClientShell({
           const updatedPipeline = prev.pipeline.map((p) =>
             p.id === ideaId ? { ...p, scheduled_at: scheduledDate.toISOString() } : p,
           );
-          const updatedScheduled = prev.pipeline.filter(
-            (p) => p.id === ideaId,
-          ) as CalendarPost[];
           return {
             ...prev,
             pipeline: updatedPipeline,
-            scheduled: [...prev.scheduled, ...updatedScheduled.map((s) => ({
-              ...s,
-              scheduled_at: scheduledDate.toISOString(),
-            }))],
+            scheduled: [
+              ...prev.scheduled,
+              ...updatedPipeline
+                .filter((p) => p.id === ideaId)
+                .map((s) => ({ ...s, scheduled_at: scheduledDate.toISOString() })),
+            ],
           };
         });
 
@@ -494,28 +498,27 @@ export function CalendarClientShell({
       } catch {
         setFeedback("Failed to schedule");
       } finally {
-        setSchedulingId(null);
       }
     },
     [],
   );
 
-  // Listen for drops from draggable ideas
+  // Listen for drops from draggable ideas — uses ref to avoid stale closure
   useEffect(() => {
     const handler = (e: DragEvent) => {
       const ideaId = e.dataTransfer?.getData("text/plain");
-      if (!ideaId || !dragOverDate) return;
+      const targetDate = dragOverDateRef.current;
+      if (!ideaId || !targetDate) return;
 
-      // Find drop target
       const target = e.target as HTMLElement;
-      if (target.closest("[data-calendar-cell]")) {
-        handleSchedule(ideaId, dragOverDate);
+      if (target.closest && target.closest("[data-calendar-cell]")) {
+        handleSchedule(ideaId, targetDate);
       }
     };
 
     document.addEventListener("drop", handler);
     return () => document.removeEventListener("drop", handler);
-  }, [dragOverDate, handleSchedule]);
+  }, [handleSchedule]);
 
   return (
     <motion.div
@@ -557,12 +560,71 @@ export function CalendarClientShell({
         ))}
       </div>
 
-      {/* Month navigation */}
-      <div className="flex items-center justify-between">
+      {/* Month navigation + filter/search */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-lg font-semibold">
           {MONTHS[month]} {year}
         </h2>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Search posts..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="h-8 w-44 pl-8 text-xs"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+              >
+                <X className="size-3" />
+              </button>
+            )}
+          </div>
+
+          {/* Status filter */}
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="h-8 rounded-lg border border-border/60 bg-background px-2.5 text-xs font-medium text-muted-foreground"
+          >
+            <option value="all">All status</option>
+            <option value="published">Published</option>
+            <option value="pipeline">Pipeline</option>
+            <option value="scheduled">Scheduled</option>
+          </select>
+
+          {/* Stage filter */}
+          <select
+            value={filterStage}
+            onChange={(e) => setFilterStage(e.target.value)}
+            className="h-8 rounded-lg border border-border/60 bg-background px-2.5 text-xs font-medium text-muted-foreground"
+          >
+            <option value="all">All stages</option>
+            <option value="idea">Idea</option>
+            <option value="outline_done">Outline</option>
+            <option value="draft_done">Draft</option>
+            <option value="reviewed">Reviewed</option>
+            <option value="marketing_done">Marketing</option>
+            <option value="approved">Approved</option>
+          </select>
+
+          {/* Toggle sidebar */}
+          <button
+            onClick={() => setSidebarOpen((o) => !o)}
+            className={cn(
+              "rounded-lg border p-1.5 transition-colors",
+              sidebarOpen
+                ? "border-brand/40 bg-brand/5 text-brand"
+                : "border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/50",
+            )}
+          >
+            <SlidersHorizontal className="size-4" />
+          </button>
+
           <button
             onClick={goToday}
             className="rounded-lg border border-border/60 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
@@ -606,7 +668,6 @@ export function CalendarClientShell({
               <DraggableIdeaCard
                 key={idea.id}
                 idea={idea}
-                onScheduled={() => {}}
               />
             ))}
             {unscheduledIdeas.length > 8 && (
@@ -618,32 +679,112 @@ export function CalendarClientShell({
         </motion.div>
       )}
 
-      {/* Calendar grid */}
-      <motion.div
-        key={`${year}-${month}`}
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-      >
-        <CalendarGrid
-          year={year}
-          month={month}
-          postsByDate={postsByDate}
-          scheduledByDate={scheduledByDate}
-          dragOverDate={dragOverDate}
-          onDragOver={handleDragOver}
-          onDragLeave={handleDragLeave}
-          onDrop={(dateStr) => {
-            // Handled globally via document-level drop listener
-          }}
-          onDateClick={(d) => setSelectedDate(d)}
-          selectedDate={selectedDate}
-        />
-      </motion.div>
+      {/* Main content + optional sidebar */}
+      <div className={cn("flex gap-6", sidebarOpen ? "flex-col lg:flex-row" : "")}>
+        {/* Calendar grid area */}
+        <div className={cn("flex-1 min-w-0", sidebarOpen ? "" : "")}>
+          <motion.div
+            key={`${year}-${month}`}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <CalendarGrid
+              year={year}
+              month={month}
+              postsByDate={postsByDate}
+              scheduledByDate={scheduledByDate}
+              dragOverDate={dragOverDate}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              // eslint-disable-next-line @typescript-eslint/no-unused-vars
+              onDrop={(_dateStr: string) => {
+                // Handled globally via document-level drop listener
+              }}
+              onDateClick={(d) => setSelectedDate(d)}
+              selectedDate={selectedDate}
+            />
+          </motion.div>
 
-      {/* Bottom: Timeline only (Pipeline Ideas removed per user request) */}
-      <div className="grid gap-6 lg:grid-cols-1">
-        <MiniTimeline scheduled={data.scheduled} />
+          <div className="grid gap-6 mt-6 lg:grid-cols-1">
+            <MiniTimeline scheduled={data.scheduled} />
+          </div>
+        </div>
+
+        {/* Stats sidebar */}
+        {sidebarOpen && (
+          <motion.aside
+            className="w-full lg:w-72 shrink-0 space-y-4"
+            initial={{ opacity: 0, x: 16 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.25 }}
+          >
+            {/* Pipeline breakdown */}
+            <div className="rounded-xl border border-border/60 bg-card p-4">
+              <h3 className="text-sm font-semibold mb-3">Pipeline Breakdown</h3>
+              <div className="space-y-2">
+                {[
+                  { label: "Ideas", count: filteredPipeline.filter((p) => p.stage === "idea" || !p.stage).length, color: "bg-muted" },
+                  { label: "Outline", count: filteredPipeline.filter((p) => p.stage === "outline_done").length, color: "bg-brand/30" },
+                  { label: "Draft", count: filteredPipeline.filter((p) => p.stage === "draft_done").length, color: "bg-amber-500/30" },
+                  { label: "Review", count: filteredPipeline.filter((p) => p.stage === "reviewed").length, color: "bg-purple-500/30" },
+                  { label: "Marketing", count: filteredPipeline.filter((p) => p.stage === "marketing_done").length, color: "bg-blue-500/30" },
+                  { label: "Approved", count: filteredPipeline.filter((p) => p.stage === "approved").length, color: "bg-emerald-500/30" },
+                ].map((stage) => (
+                  <div key={stage.label} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className={cn("size-2 rounded-full", stage.color)} />
+                      <span className="text-muted-foreground">{stage.label}</span>
+                    </div>
+                    <span className="font-medium">{stage.count}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Month stats */}
+            <div className="rounded-xl border border-border/60 bg-card p-4">
+              <h3 className="text-sm font-semibold mb-3">This Month</h3>
+              {(() => {
+                const monthStr = `${year}-${String(month + 1).padStart(2, "0")}`;
+                const monthPublished = data.published.filter(
+                  (p) => p.date && p.date.startsWith(monthStr),
+                ).length;
+                const monthScheduled = data.pipeline.filter(
+                  (p) => p.scheduled_at && p.scheduled_at.startsWith(monthStr),
+                ).length;
+                return (
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Published</span>
+                      <span className="font-medium text-emerald-600 dark:text-emerald-400">{monthPublished}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Scheduled</span>
+                      <span className="font-medium text-sky-600 dark:text-sky-400">{monthScheduled}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-border/30 pt-2 mt-2">
+                      <span className="text-muted-foreground">Day with most posts</span>
+                      <span className="font-medium">
+                        {(() => {
+                          let maxDay = "--";
+                          let maxCount = 0;
+                          for (const [date, posts] of postsByDate) {
+                            if (date.startsWith(monthStr) && posts.length > maxCount) {
+                              maxCount = posts.length;
+                              maxDay = date.slice(8, 10);
+                            }
+                          }
+                          return maxDay !== "--" ? `${maxDay} (${maxCount})` : "--";
+                        })()}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          </motion.aside>
+        )}
       </div>
     </motion.div>
   );

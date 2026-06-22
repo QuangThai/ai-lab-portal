@@ -1,0 +1,65 @@
+{
+  "nextId": 6,
+  "tasks": [
+    {
+      "id": "1",
+      "subject": "Create test_tasks_coverage.py for audit_seo_task, publish_scheduled_posts_task, and edge cases",
+      "description": "Add test file covering audit_seo_task, publish_scheduled_posts_task, edge cases around draft retry final fallback, and other uncovered task paths.",
+      "status": "in_progress",
+      "activeForm": "Creating test_tasks_coverage.py",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780834856819,
+      "updatedAt": 1780835213491
+    },
+    {
+      "id": "2",
+      "subject": "Create test_llm_streaming_coverage.py with full recording and event-type coverage",
+      "description": "Add coverage for: LLMGenerationError handler, LLM catch-all exception, AgentUpdatedStreamEvent branch, RunItemStreamEvent branch, recording with hooks.total_ms, saving_session status event.",
+      "status": "completed",
+      "activeForm": "Creating test_llm_streaming_coverage.py",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780834856822,
+      "updatedAt": 1780835018082
+    },
+    {
+      "id": "3",
+      "subject": "Create test_streaming_routes_coverage.py with auth, SEO streaming, and save-failure paths",
+      "description": "Add coverage for: auth (401) on all streaming endpoints, SEO streaming endpoint, save failure for review and marketing endpoints, SSE event parsing verification.",
+      "status": "completed",
+      "activeForm": "Creating test_streaming_routes_coverage.py",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780834856825,
+      "updatedAt": 1780835213491
+    },
+    {
+      "id": "4",
+      "subject": "Create test_blog_ideas_workflow.py for streaming idea, Postgres repo CRUD, and _dispatch dispatch paths",
+      "description": "Add coverage for: generate_idea_stream SSE flow, PostgresBlogIdeaRepository CRUD with JSON serialization round-trip, additional _dispatch_or_run_generation paths.",
+      "status": "pending",
+      "activeForm": "Creating test_blog_ideas_workflow.py",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780834856826,
+      "updatedAt": 1780834856826
+    },
+    {
+      "id": "5",
+      "subject": "Create test_agents_sdk_service_coverage.py for remaining edge cases",
+      "description": "Add coverage for: recording failure path silencing, max_tokens param consistency, agent with empty guardrails list, session save exception swallowing.",
+      "status": "completed",
+      "activeForm": "Creating test_agents_sdk_service_coverage.py",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780834856827,
+      "updatedAt": 1780835075058
+    }
+  ]
+}

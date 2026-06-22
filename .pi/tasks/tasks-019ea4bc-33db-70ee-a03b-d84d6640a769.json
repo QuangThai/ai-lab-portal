@@ -1,0 +1,16 @@
+{
+  "nextId": 41,
+  "tasks": [
+    {
+      "id": "40",
+      "subject": "Fix blog editor useActionState + table display + add Codex CLI tips post",
+      "description": "1. Fix useActionState outside transition error in blog-editor.tsx. 2. Fix table CSS in blog detail view. 3. Write new blog post for Codex CLI tips.",
+      "status": "completed",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780907794447,
+      "updatedAt": 1780907908614
+    }
+  ]
+}

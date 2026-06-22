@@ -1,0 +1,126 @@
+{
+  "nextId": 12,
+  "tasks": [
+    {
+      "id": "1",
+      "subject": "Commit 1: chore: normalize CRLF→LF line endings for test files",
+      "description": "Stage and commit .gitattributes and test_blog_social_comments.py",
+      "status": "completed",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780991637929,
+      "updatedAt": 1780991652782
+    },
+    {
+      "id": "2",
+      "subject": "Commit 2: refactor: remove cache:no-store from public GET fetches",
+      "description": "Stage and commit changes to frontend lib files and blog detail page removing { cache: \"no-store\" }",
+      "status": "completed",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780991637930,
+      "updatedAt": 1780991707346
+    },
+    {
+      "id": "3",
+      "subject": "Commit 3: feat: migrate blog series page to createPublicMetadata and Tailwind v4",
+      "description": "Stage and commit frontend/app/blog/series/[slug]/page.tsx",
+      "status": "completed",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780991637931,
+      "updatedAt": 1780991723227
+    },
+    {
+      "id": "4",
+      "subject": "Commit 4: feat(seo): add update_fields helper to BlogIdeaRepository",
+      "description": "Stage and commit backend/app/blog_ideas.py",
+      "status": "completed",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780991637932,
+      "updatedAt": 1780991734758
+    },
+    {
+      "id": "5",
+      "subject": "Commit 5: feat(seo): add apply-seo-changes backend logic and endpoint",
+      "description": "Stage and commit seo_optimizer.py and seo_optimizer_routes.py",
+      "status": "completed",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780991637932,
+      "updatedAt": 1780991745613
+    },
+    {
+      "id": "6",
+      "subject": "Commit 6: feat(seo): add interactive SEO optimize client component",
+      "description": "Stage and commit page.tsx (refactored), optimize-client.tsx (new), and API route (new)",
+      "status": "completed",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780991637933,
+      "updatedAt": 1780991759878
+    },
+    {
+      "id": "7",
+      "subject": "Commit 7: feat(scheduling): add blog-idea scheduling suggestion route",
+      "description": "Stage and commit backend/app/scheduling_routes.py",
+      "status": "completed",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780991637933,
+      "updatedAt": 1780991771122
+    },
+    {
+      "id": "8",
+      "subject": "Commit 8: feat(scheduling): add AI scheduling suggestion UI",
+      "description": "Stage and commit schedule-button.tsx and suggest-schedule API route",
+      "status": "completed",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780991637934,
+      "updatedAt": 1780991786238
+    },
+    {
+      "id": "9",
+      "subject": "Commit 9: feat(agents): wire LLM-backed agent services in app factory",
+      "description": "Stage and commit backend/app/main.py",
+      "status": "completed",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780991637934,
+      "updatedAt": 1780991798222
+    },
+    {
+      "id": "10",
+      "subject": "Commit 10: test(backend): add unit tests for new features",
+      "description": "Stage and commit all new backend test files",
+      "status": "completed",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780991637935,
+      "updatedAt": 1780991811317
+    },
+    {
+      "id": "11",
+      "subject": "Commit 11: test(e2e): add E2E tests for scheduling suggestion and SEO page",
+      "description": "Stage and commit admin-proof-gaps.spec.ts",
+      "status": "completed",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780991637936,
+      "updatedAt": 1780991826148
+    }
+  ]
+}

@@ -34,3 +34,4 @@ scripts/bin/harness-cli.exe
 .coverage
 .coverage
 .pi*.log
+frontend/next-env.d.ts

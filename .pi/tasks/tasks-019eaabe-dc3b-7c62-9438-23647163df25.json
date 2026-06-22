@@ -1,0 +1,161 @@
+{
+  "nextId": 14,
+  "tasks": [
+    {
+      "id": "1",
+      "subject": "Verify E16 exit criteria — audit implementation vs spec",
+      "description": "Audit all 5 exit criteria of E16 (AI Agents Expansion) by examining backend code, frontend UI, tests, fake providers, and LLM backend integration for US-107 (Content Repurposing), US-108 (Auto-Scheduling), US-109 (SEO Auto-Optimize).",
+      "status": "in_progress",
+      "activeForm": "Auditing E16 implementation",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780981233750,
+      "updatedAt": 1780981251022
+    },
+    {
+      "id": "2",
+      "subject": "Fix main.py LLM backend switching for E16 agents",
+      "description": "In main.py, replace hardcoded Fake*Service with LLM-powered services when AI_LAB_LLM_BACKEND is set and API key available. Fall back to Fake services otherwise. Must follow existing pattern from task_support.py _build_llm_service()",
+      "status": "completed",
+      "activeForm": "Fixing LLM backend switching",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780981546443,
+      "updatedAt": 1780981657757
+    },
+    {
+      "id": "3",
+      "subject": "Implement SEO per-section accept/reject with draft apply",
+      "description": "Add accept/reject buttons per SEO change section, backend API to apply accepted changes to blog idea draft, and update the frontend to show interactive accept/reject UI instead of read-only diff display.",
+      "status": "completed",
+      "activeForm": "Implementing SEO per-section accept/reject",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780981546444,
+      "updatedAt": 1780981907231
+    },
+    {
+      "id": "4",
+      "subject": "Write rigorous tests for LLM switching and SEO apply",
+      "description": "Write real, thorough tests (not just happy-path). Test: LLM service selection logic, fallback to Fake when no API key, SEO apply changes for each section type (title, meta, headings, links, keywords), edge cases (empty changes, invalid sections, draft already empty). Must catch real bugs.",
+      "status": "completed",
+      "activeForm": "Writing rigorous tests",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780981546446,
+      "updatedAt": 1780982790097
+    },
+    {
+      "id": "5",
+      "subject": "Build Scheduling suggestion UI with AI rationale + Celery auto-publish",
+      "description": "Frontend: Update ScheduleButton to show AI suggestion (rationale, confidence, suggested date/time). Add \"Get AI Suggestion\" button that calls POST /admin/blog-posts/{id}/suggest-schedule. Backend: Add Celery periodic task for auto-publishing scheduled posts.",
+      "status": "completed",
+      "activeForm": "Building Scheduling suggestion UI",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780984330940,
+      "updatedAt": 1780984491895
+    },
+    {
+      "id": "6",
+      "subject": "Build Admin submitted-links review UI",
+      "description": "Investigated submitted-links page — already functional (list + detail + reprocess + status badges). No additional work needed.",
+      "status": "completed",
+      "activeForm": "Building Admin submitted-links review UI",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780984330941,
+      "updatedAt": 1780984604762
+    },
+    {
+      "id": "7",
+      "subject": "Add \"Share\" dropdown on public blog post page",
+      "description": "BlogShareButtons component already exists and is rendered on blog detail page. Includes X/Twitter, LinkedIn, and Copy link. No additional work needed.",
+      "status": "completed",
+      "activeForm": "Building Share dropdown on public blog",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780984330942,
+      "updatedAt": 1780984711792
+    },
+    {
+      "id": "8",
+      "subject": "Write E2E tests for scheduling suggestion UI and SEO accept/reject flow",
+      "description": "Playwright tests for: 1) scheduling suggestion button shows rationale/confidence, 2) accept suggestion sets scheduled_at, 3) SEO optimize-seo page accept/reject per section, 4) SEO apply changes updates draft.",
+      "status": "completed",
+      "activeForm": "Writing E2E tests for Scheduling + SEO",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780984740715,
+      "updatedAt": 1780984821023
+    },
+    {
+      "id": "9",
+      "subject": "Richer Claim Review UI",
+      "description": "Investigated claim review UI — already rich (filter tabs, search, evidence form, bulk waive, claim types, blocking banner). Deferred item from old backlog; current implementation is functional and well-integrated.",
+      "status": "completed",
+      "activeForm": "Improving Claim Review UI",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780984740717,
+      "updatedAt": 1780984867124
+    },
+    {
+      "id": "10",
+      "subject": "Audit test coverage & write real-world tests for gap modules",
+      "description": "Added 109 new backend tests: 30 pipeline_runner, 47 blog_series, 18 task_support, 14 blog_social. All pass. Plus 2 E2E tests for scheduling suggestion and SEO page.",
+      "status": "completed",
+      "activeForm": "Auditing test coverage",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780985094742,
+      "updatedAt": 1780986010585
+    },
+    {
+      "id": "11",
+      "subject": "Launch polish: SEO metadata, error boundaries, loading states, pre-flight",
+      "description": "SEO audit: fixed blog/series/[slug] to use createPublicMetadata (OG image, Twitter cards, canonical). Auth pages /contact /login /register are client components so can't use metadata — acceptable. Added metadata audit report.",
+      "status": "completed",
+      "activeForm": "Polishing for launch",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780985094743,
+      "updatedAt": 1780986830950
+    },
+    {
+      "id": "12",
+      "subject": "Advanced caching/CDN strategy",
+      "description": "Caching audit: removed cache: no-store from all public data fetches (showcases, blog posts, tags, projects, ai-news, blog series). Backend already sets max-age=60 + s-maxage=300 + stale-while-revalidate=600. Redis cache layer exists. CDN config is missing — pending infra decision.",
+      "status": "completed",
+      "activeForm": "Planning caching strategy",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780985094744,
+      "updatedAt": 1780986830953
+    },
+    {
+      "id": "13",
+      "subject": "Build Blog Series admin CRUD UI",
+      "description": "Create a full admin UI for managing blog series: list all series, create new, edit series metadata (title, description, slug, cover), add/remove/reorder posts within a series. Backend API already exists at /admin/blog-series.",
+      "status": "in_progress",
+      "activeForm": "Building blog series admin UI",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1780990595856,
+      "updatedAt": 1780990602182
+    }
+  ]
+}

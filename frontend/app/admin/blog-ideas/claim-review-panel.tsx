@@ -1,5 +1,6 @@
 "use client";
 
+import { motion } from "framer-motion";
 import { useMemo, useState } from "react";
 import { useFormStatus } from "react-dom";
 import {
@@ -101,6 +102,153 @@ const CLAIM_TYPE_CONFIG: Record<string, { icon: typeof FileText; label: string; 
     color: "text-sky-600 bg-sky-50 dark:text-sky-400 dark:bg-sky-950/30",
   },
 };
+
+/* ── Claim Action Form with Diff Preview ── */
+
+function ClaimActionForm({ claim, ideaId, actions }: { claim: BlogClaimItem; ideaId: string; actions: ClaimActions }) {
+  const [showDiff, setShowDiff] = useState(false);
+
+  return (
+    <div className="mt-4">
+      <form action={actions.updateClaim} className="grid gap-3 rounded-lg border border-dashed border-border/70 bg-muted/20 p-4">
+        <input name="claimId" type="hidden" value={claim.id} />
+        <input name="ideaId" type="hidden" value={ideaId} />
+
+        <p className="text-xs font-semibold text-foreground">
+          Provide evidence or resolve
+        </p>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1.5 text-xs font-medium text-foreground">
+            Evidence source
+            <select
+              className={selectClassName}
+              defaultValue=""
+              name="evidenceSource"
+              required
+            >
+              <option disabled value="">
+                Select source type
+              </option>
+              {EVIDENCE_SOURCES.map((source) => (
+                <option key={source.value} value={source.value}>
+                  {source.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1.5 text-xs font-medium text-foreground">
+            Evidence reference
+            <input
+              className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
+              name="evidenceReference"
+              placeholder="Link, doc section, or measurement note"
+              required
+            />
+          </label>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <SubmitButton label="Mark supported" icon={CheckCircle2} />
+
+          {/* Waive button with diff toggle */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowDiff((d) => !d)}
+              className={cn(
+                buttonVariants({ size: "sm", variant: showDiff ? "secondary" : "outline" }),
+                "gap-1.5",
+              )}
+            >
+              <ShieldOff className="size-3.5" aria-hidden />
+              {showDiff ? "Cancel" : "Waive for publish"}
+            </button>
+
+            {/* Diff preview dropdown */}
+            {showDiff && (
+              <motion.div
+                className="absolute right-0 top-full mt-2 z-20 w-80 rounded-lg border border-border/60 bg-card shadow-xl"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.15 }}
+              >
+                <div className="p-3 space-y-3">
+                  <p className="text-xs font-semibold text-foreground">Diff Preview: Waive Claim</p>
+
+                  {/* Before */}
+                  <div className="rounded-md border border-amber-200 bg-amber-50/40 p-2.5 dark:border-amber-900 dark:bg-amber-950/15">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-amber-600 dark:text-amber-400 mb-1">
+                      Before (pending)
+                    </p>
+                    <p className="text-xs text-foreground leading-relaxed">
+                      <span className="line-through opacity-70">{claim.claim_text}</span>
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Status: Pending · Blocks publishing
+                    </p>
+                  </div>
+
+                  {/* Arrow */}
+                  <div className="flex justify-center">
+                    <ShieldOff className="size-4 text-muted-foreground" />
+                  </div>
+
+                  {/* After */}
+                  <div className="rounded-md border border-sky-200 bg-sky-50/40 p-2.5 dark:border-sky-900 dark:bg-sky-950/15">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-600 dark:text-sky-400 mb-1">
+                      After (waived)
+                    </p>
+                    <p className="text-xs text-foreground leading-relaxed">
+                      {claim.claim_text}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      Status: Waived · No longer blocks publishing
+                    </p>
+                  </div>
+
+                  {/* Confirm */}
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      className={cn(buttonVariants({ size: "sm", variant: "default" }), "flex-1 gap-1.5")}
+                      name="waive"
+                      type="submit"
+                      value="on"
+                    >
+                      <ShieldOff className="size-3.5" />
+                      Confirm waive
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowDiff(false)}
+                      className={cn(buttonVariants({ size: "sm", variant: "ghost" }), "flex-1")}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </div>
+
+          <button
+            className={cn(
+              buttonVariants({ size: "sm", variant: "outline" }),
+              "gap-1.5",
+            )}
+            name="unsupported"
+            type="submit"
+            value="on"
+          >
+            <XCircle className="size-3.5" aria-hidden />
+            Mark unsupported
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 
 export function ClaimReviewPanel({ ideaId, claims, actions }: Props) {
   const summary = summarizeClaims(claims);
@@ -278,72 +426,7 @@ export function ClaimReviewPanel({ ideaId, claims, actions }: Props) {
 
                     {/* Pending claim: evidence form */}
                     {claim.status === "pending" ? (
-                      <form action={actions.updateClaim} className="mt-4 grid gap-3 rounded-lg border border-dashed border-border/70 bg-muted/20 p-4">
-                        <input name="claimId" type="hidden" value={claim.id} />
-                        <input name="ideaId" type="hidden" value={ideaId} />
-
-                        <p className="text-xs font-semibold text-foreground">
-                          Provide evidence or resolve
-                        </p>
-
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <label className="grid gap-1.5 text-xs font-medium text-foreground">
-                            Evidence source
-                            <select
-                              className={selectClassName}
-                              defaultValue=""
-                              name="evidenceSource"
-                              required
-                            >
-                              <option disabled value="">
-                                Select source type
-                              </option>
-                              {EVIDENCE_SOURCES.map((source) => (
-                                <option key={source.value} value={source.value}>
-                                  {source.label}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <label className="grid gap-1.5 text-xs font-medium text-foreground">
-                            Evidence reference
-                            <input
-                              className="rounded-md border border-border bg-background px-2 py-1.5 text-sm"
-                              name="evidenceReference"
-                              placeholder="Link, doc section, or measurement note"
-                              required
-                            />
-                          </label>
-                        </div>
-
-                        <div className="flex flex-wrap gap-2">
-                          <SubmitButton label="Mark supported" icon={CheckCircle2} />
-                          <button
-                            className={cn(
-                              buttonVariants({ size: "sm", variant: "outline" }),
-                              "gap-1.5",
-                            )}
-                            name="waive"
-                            type="submit"
-                            value="on"
-                          >
-                            <ShieldOff className="size-3.5" aria-hidden />
-                            Waive for publish
-                          </button>
-                          <button
-                            className={cn(
-                              buttonVariants({ size: "sm", variant: "outline" }),
-                              "gap-1.5",
-                            )}
-                            name="unsupported"
-                            type="submit"
-                            value="on"
-                          >
-                            <XCircle className="size-3.5" aria-hidden />
-                            Mark unsupported
-                          </button>
-                        </div>
-                      </form>
+                      <ClaimActionForm claim={claim} ideaId={ideaId} actions={actions} />
                     ) : null}
                   </li>
                 );
