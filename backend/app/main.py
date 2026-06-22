@@ -78,6 +78,7 @@ from backend.app.blog_ideas import (
     create_blog_idea_routes,
 )
 from backend.app.blog_social import (
+    BlogComment,
     BlogSocialRepository,
     InMemoryBlogSocialRepository,
     PostgresBlogSocialRepository,
@@ -844,13 +845,43 @@ def create_app(
     app.include_router(create_user_profile_admin_routes(profile_repo, resolved_settings))
     # Notification hook for follow events
     def notify_on_follow(followed_user_id: str, actor_user_id: str, actor_email: str | None) -> None:
+        actor_profile = profile_repo.get_by_user_id(actor_user_id) if actor_user_id else None
+        actor_display_name = actor_profile.display_name if actor_profile else None
         notif_repo.create(
             user_id=followed_user_id,
             type="follow",
             actor_user_id=actor_user_id,
             actor_email=actor_email,
+            actor_display_name=actor_display_name,
             resource_id=actor_user_id,
             resource_type="user",
+            group_key=f"follow:{actor_user_id}",
+            link=f"/profile/{actor_user_id}",
+        )
+
+    # Notification hook for comment replies
+    def notify_on_comment_reply(comment: BlogComment, slug: str) -> None:
+        if not comment.parent_id:
+            return
+        parent = social_repo.get_comment_by_id(comment.parent_id)
+        if parent is None:
+            return
+        # Don't notify if replying to own comment
+        if parent.user_id == comment.user_id:
+            return
+        actor_profile = profile_repo.get_by_user_id(comment.user_id) if comment.user_id else None
+        actor_display_name = actor_profile.display_name if actor_profile else None
+        notif_repo.create(
+            user_id=parent.user_id,
+            type="comment_reply",
+            actor_user_id=comment.user_id,
+            actor_email=comment.user_email,
+            actor_display_name=actor_display_name,
+            resource_id=comment.post_id,
+            resource_type="post",
+            preview=comment.content[:120],
+            group_key=f"comment_reply:{comment.post_id}",
+            link=f"/blog/{slug}",
         )
 
     app.include_router(create_user_follow_routes(follow_repo, resolved_settings, on_follow=notify_on_follow))
@@ -863,6 +894,7 @@ def create_app(
             repository,
             resolved_settings,
             profile_repo,
+            on_comment=notify_on_comment_reply,
         )
     )
     app.include_router(

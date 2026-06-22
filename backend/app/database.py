@@ -457,10 +457,14 @@ notifications = Table(
     Column("actor_display_name", String(160), nullable=True),
     Column("resource_id", String(64), nullable=False, server_default=""),
     Column("resource_type", String(32), nullable=False, server_default=""),
+    Column("preview", Text, nullable=True, server_default=""),
+    Column("group_key", String(64), nullable=True, server_default=""),
+    Column("link", String(512), nullable=True, server_default=""),
     Column("read", Boolean, nullable=False, server_default=text("FALSE")),
     Column("created_at", DateTime(timezone=True), nullable=False),
     Index("ix_notifications_user_read", "user_id", "read"),
     Index("ix_notifications_user_created", "user_id", "created_at"),
+    Index("ix_notifications_group_key", "group_key"),
 )
 
 blog_series = Table(

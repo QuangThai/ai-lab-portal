@@ -1,4 +1,53 @@
 {
-  "nextId": 27,
-  "tasks": []
+  "nextId": 31,
+  "tasks": [
+    {
+      "id": "27",
+      "subject": "Add notification fields + DB migration (preview, group_key, link)",
+      "description": "1. Create alembic migration adding preview (Text), group_key (String 64), link (String 512) columns to notifications table\n2. Update Notification Pydantic model in notifications.py with new fields\n3. Update InMemoryNotificationRepository.create() to accept new params\n4. Update PostgresNotificationRepository.create() for new columns\n5. Update _to_summary() to include new fields\n6. Verify existing tests still pass",
+      "status": "completed",
+      "activeForm": "Adding notification fields + migration",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1782148070369,
+      "updatedAt": 1782148241129
+    },
+    {
+      "id": "28",
+      "subject": "Upgrade follow notification + add comment reply notification",
+      "description": "1. Update notify_on_follow callback in main.py to pass actor_display_name, link (profile URL), group_key (actor_user_id)\n2. Create on_comment callback in main.py for comment reply notifications\n3. Wire on_comment into create_blog_social_routes() or add directly in main.py\n4. Ensure comment replies trigger notification to the parent comment author\n5. Create mention detection in comment content (detect @username patterns)",
+      "status": "completed",
+      "activeForm": "Upgrading notification hooks",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1782148070372,
+      "updatedAt": 1782148553570
+    },
+    {
+      "id": "29",
+      "subject": "Redesign NotificationBell dropdown UI",
+      "description": "Redesign the notification bell dropdown to be more polished:\n1. Show actor avatar (with initials fallback) in a circle\n2. Type-based icons (UserPlus for follow, MessageSquare for comment_reply, AtSign for mention)\n3. Content preview — show first 80 chars of the comment/reply\n4. Grouping — group notifications with same group_key (e.g., \"A and B followed you\")\n5. Navigation — each notification links to the resource URL\n6. Visual distinction: follow = blue, comment_reply = green, mention = amber\n7. Better time display format\n8. Hover effects and transitions\n9. Empty state illustration",
+      "status": "in_progress",
+      "activeForm": "Redesigning NotificationBell UI",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1782148070374,
+      "updatedAt": 1782148610844
+    },
+    {
+      "id": "30",
+      "subject": "Update notification tests and verify",
+      "description": "1. Update existing notification tests to include new fields (preview, group_key, link)\n2. Add tests for comment reply notifications\n3. Add tests for grouped notification display logic\n4. Run full test suite to verify nothing broken\n5. Run typecheck on frontend\n6. Commit all changes",
+      "status": "completed",
+      "activeForm": "Updating tests and verifying",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1782148070376,
+      "updatedAt": 1782148610843
+    }
+  ]
 }

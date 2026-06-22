@@ -41,14 +41,22 @@ def test_create_notification() -> None:
         type="follow",
         actor_user_id="user-1",
         actor_email="user1@test.com",
+        actor_display_name="User One",
         resource_id="user-1",
         resource_type="user",
+        preview="",
+        group_key="follow:user-1",
+        link="/profile/user-1",
     )
     assert notif.user_id == "user-2"
     assert notif.type == "follow"
     assert notif.actor_user_id == "user-1"
     assert notif.read is False
     assert notif.id.startswith("notif_")
+    assert notif.actor_display_name == "User One"
+    assert notif.preview == ""
+    assert notif.group_key == "follow:user-1"
+    assert notif.link == "/profile/user-1"
 
 
 def test_list_for_user() -> None:
@@ -201,3 +209,54 @@ def test_api_notifications_user_scoped() -> None:
 
     resp2 = client.get("/public/notifications", headers=_user_headers("user-2"))
     assert len(resp2.json()) == 1
+
+
+def test_notification_includes_new_fields() -> None:
+    repo = InMemoryNotificationRepository()
+    notif = repo.create(
+        user_id="user-2",
+        type="comment_reply",
+        actor_user_id="user-1",
+        actor_display_name="User One",
+        resource_id="post-1",
+        resource_type="post",
+        preview="Great point! I agree with...",
+        group_key="comment_reply:post-1",
+        link="/blog/test-post",
+    )
+    assert notif.preview == "Great point! I agree with..."
+    assert notif.group_key == "comment_reply:post-1"
+    assert notif.link == "/blog/test-post"
+
+    summaries = repo.list_for_user("user-2")
+    assert len(summaries) == 1
+    assert summaries[0].preview == "Great point! I agree with..."
+    assert summaries[0].group_key == "comment_reply:post-1"
+    assert summaries[0].link == "/blog/test-post"
+
+
+def test_comment_reply_notification_created_via_api() -> None:
+    """Test that the API creates notifications with new fields visible."""
+    client, repo = _make_app()
+    notif = repo.create(
+        user_id="user-1",
+        type="comment_reply",
+        actor_user_id="user-2",
+        actor_display_name="User Two",
+        resource_id="post-abc",
+        resource_type="post",
+        preview="This is a reply to your comment",
+        group_key="comment_reply:post-abc",
+        link="/blog/some-post",
+    )
+    assert notif.preview == "This is a reply to your comment"
+    assert notif.link == "/blog/some-post"
+
+    resp = client.get("/public/notifications", headers=_user_headers("user-1"))
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) == 1
+    assert data[0]["preview"] == "This is a reply to your comment"
+    assert data[0]["group_key"] == "comment_reply:post-abc"
+    assert data[0]["link"] == "/blog/some-post"
+    assert data[0]["type"] == "comment_reply"

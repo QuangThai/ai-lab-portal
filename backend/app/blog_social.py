@@ -1,5 +1,7 @@
 """Blog social features: reactions, bookmarks, comments."""
 
+from collections.abc import Callable
+
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
 from typing import Annotated, Literal
@@ -646,6 +648,7 @@ def create_blog_social_routes(
     blog_repo: BlogRepositoryProtocol,
     settings: Settings,
     profile_repo: UserProfileRepository | None = None,
+    on_comment: Callable[[BlogComment, str], None] | None = None,
 ) -> APIRouter:
     """Public routes for blog social features (requires user auth via signed identity)."""
 
@@ -752,7 +755,7 @@ def create_blog_social_routes(
             _identity.user_id,
             default_name=default_name_from_identity(_identity),
         ) if profile_repo else None
-        return social_repo.create_comment(
+        comment = social_repo.create_comment(
             post_id=post.id,
             user_id=_identity.user_id,
             user_email=_identity.email,
@@ -760,6 +763,9 @@ def create_blog_social_routes(
             content=body.content,
             parent_id=body.parent_id,
         )
+        if on_comment is not None and body.parent_id:
+            on_comment(comment, slug)
+        return comment
 
     # ── Comment reactions ──
 

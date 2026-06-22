@@ -32,6 +32,9 @@ class Notification(BaseModel):
     actor_display_name: str | None = None
     resource_id: str = ""
     resource_type: str = ""
+    preview: str = ""
+    group_key: str = ""
+    link: str = ""
     read: bool = False
     created_at: datetime
 
@@ -44,6 +47,9 @@ class NotificationSummary(BaseModel):
     actor_display_name: str | None = None
     resource_id: str = ""
     resource_type: str = ""
+    preview: str = ""
+    group_key: str = ""
+    link: str = ""
     read: bool
     created_at: datetime
 
@@ -68,6 +74,9 @@ class InMemoryNotificationRepository:
         actor_display_name: str | None = None,
         resource_id: str = "",
         resource_type: str = "",
+        preview: str = "",
+        group_key: str = "",
+        link: str = "",
     ) -> Notification:
         notification = Notification(
             id=f"notif_{uuid4().hex}",
@@ -78,6 +87,9 @@ class InMemoryNotificationRepository:
             actor_display_name=actor_display_name,
             resource_id=resource_id,
             resource_type=resource_type,
+            preview=preview,
+            group_key=group_key,
+            link=link,
             read=False,
             created_at=_now(),
         )
@@ -121,6 +133,9 @@ class PostgresNotificationRepository:
         actor_display_name: str | None = None,
         resource_id: str = "",
         resource_type: str = "",
+        preview: str = "",
+        group_key: str = "",
+        link: str = "",
     ) -> Notification:
         notification = Notification(
             id=f"notif_{uuid4().hex}",
@@ -131,6 +146,9 @@ class PostgresNotificationRepository:
             actor_display_name=actor_display_name,
             resource_id=resource_id,
             resource_type=resource_type,
+            preview=preview,
+            group_key=group_key,
+            link=link,
             read=False,
             created_at=_now(),
         )
@@ -205,6 +223,9 @@ def _to_summary(n: Notification) -> NotificationSummary:
         actor_display_name=n.actor_display_name,
         resource_id=n.resource_id,
         resource_type=n.resource_type,
+        preview=n.preview,
+        group_key=n.group_key,
+        link=n.link,
         read=n.read,
         created_at=n.created_at,
     )
@@ -213,7 +234,7 @@ def _to_summary(n: Notification) -> NotificationSummary:
 # ─── Route factory ────────────────────────────────────────────────────────────
 
 OnNotificationCallback = Callable[
-    [str, NotificationType, str, str | None, str | None, str, str],
+    [str, NotificationType, str, str | None, str | None, str, str, str, str, str],
     None,
 ]
 
