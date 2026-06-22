@@ -27,7 +27,7 @@ function getAccent(title: string, isLive: boolean) {
   // Live modules use neutral colors with subtle brand accent only on hover
   return {
     gradient: "from-brand/6 to-transparent",
-    iconBg: "from-foreground to-foreground/90",
+    iconBg: "from-muted-foreground/30 to-muted-foreground/15",
     badge: "bg-brand/10 text-brand ring-brand/20",
     glow: "shadow-brand/3",
   };
@@ -77,7 +77,7 @@ function renderDefault({
       <div className="relative flex items-start justify-between gap-2">
         <span
           className={cn(
-            "flex size-10 shrink-0 items-center justify-center rounded-xl text-white shadow-[0_2px_6px_rgba(0,0,0,0.10)] ring-1 ring-white/15 transition-transform duration-300 group-hover:scale-105",
+            "flex size-10 shrink-0 items-center justify-center rounded-xl text-foreground shadow-[0_2px_6px_rgba(0,0,0,0.06)] transition-transform duration-300 group-hover:scale-105",
             "bg-gradient-to-br",
             accent.iconBg,
           )}
@@ -168,7 +168,7 @@ function renderCompact({
       {/* Icon */}
       <span
         className={cn(
-          "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg text-white shadow-[0_1px_3px_rgba(0,0,0,0.08)] ring-1 ring-white/10",
+          "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-lg text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.04)]",
           "bg-gradient-to-br",
           accent.iconBg,
         )}

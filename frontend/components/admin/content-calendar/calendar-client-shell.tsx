@@ -1,10 +1,11 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, GripVertical, Search, X, SlidersHorizontal } from "lucide-react";
+import { AnimatePresence, motion } from "framer-motion";
+import { ArrowUpRight, ChevronDown, ChevronLeft, ChevronRight, GripVertical, Search, SlidersHorizontal, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { adminPageStackClass } from "@/components/admin/admin-ui";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
@@ -210,43 +211,7 @@ function CalendarGrid({
                 )}
               </div>
 
-              {/* Popover */}
-              {isSelected && allItems.length > 0 && (
-                <motion.div
-                  className="absolute z-10 left-0 right-0 top-full mt-1 rounded-lg border border-border/60 bg-card shadow-lg p-3 min-w-[200px]"
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.15 }}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <p className="text-xs font-semibold mb-2 text-foreground">
-                    {MONTHS[month]} {day}, {year}
-                  </p>
-                  <div className="space-y-1.5">
-                    {allItems.slice(0, 8).map((item) => (
-                      <a
-                        key={`popover-${item.type}-${item.id}`}
-                        href={
-                          item.type === "post" && item.slug
-                            ? `/blog/${item.slug}`
-                            : `/admin/blog-ideas/${item.id}`
-                        }
-                        className="block text-xs leading-tight py-1 px-1.5 rounded hover:bg-muted transition-colors"
-                      >
-                        <span className="font-medium">{item.title}</span>
-                        <span className="text-muted-foreground ml-1.5">
-                          {item.type === "post" ? "Published" : item.scheduled_at ? "Scheduled" : "Pipeline"}
-                        </span>
-                      </a>
-                    ))}
-                    {allItems.length > 8 && (
-                      <p className="text-[10px] text-muted-foreground pt-1">
-                        +{allItems.length - 8} more items
-                      </p>
-                    )}
-                  </div>
-                </motion.div>
-              )}
+
             </div>
           );
         })}
@@ -443,6 +408,20 @@ export function CalendarClientShell({
     s.title.toLowerCase().includes(searchQuery.toLowerCase()),
   ).length;
 
+  // Selected date items for dialog
+  const selectedItems = selectedDate
+    ? [
+        ...(postsByDate.get(selectedDate) ?? []),
+        ...(scheduledByDate.get(selectedDate) ?? []),
+      ]
+    : [];
+  const selectedDateLabel = selectedDate
+    ? (() => {
+        const parts = selectedDate.split("-").map(Number);
+        return `${MONTHS[parts[1] - 1]} ${parts[2]}, ${parts[0]}`;
+      })()
+    : "";
+
   // ── Drag & Drop handlers ──
 
   // Sync ref with state so global drop handler always has latest value
@@ -520,6 +499,16 @@ export function CalendarClientShell({
     return () => document.removeEventListener("drop", handler);
   }, [handleSchedule]);
 
+  // Close dialog on Escape key
+  useEffect(() => {
+    if (!selectedDate) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSelectedDate(null);
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [selectedDate]);
+
   return (
     <motion.div
       className={cn("space-y-6", adminPageStackClass)}
@@ -576,73 +565,81 @@ export function CalendarClientShell({
               className="h-8 w-44 pl-8 text-xs"
             />
             {searchQuery && (
-              <button
+              <Button
+                variant="ghost"
+                size="icon-xs"
                 onClick={() => setSearchQuery("")}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                className="absolute right-1 top-1/2 -translate-y-1/2"
               >
                 <X className="size-3" />
-              </button>
+              </Button>
             )}
           </div>
 
           {/* Status filter */}
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="h-8 rounded-lg border border-border/60 bg-background px-2.5 text-xs font-medium text-muted-foreground"
-          >
-            <option value="all">All status</option>
-            <option value="published">Published</option>
-            <option value="pipeline">Pipeline</option>
-            <option value="scheduled">Scheduled</option>
-          </select>
+          <div className="relative">
+            <select
+              value={filterStatus}
+              onChange={(e) => setFilterStatus(e.target.value)}
+              className="h-8 appearance-none rounded-lg border border-border/60 bg-background pl-2.5 pr-7 text-xs font-medium text-muted-foreground outline-none transition-colors hover:border-border/80 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 cursor-pointer"
+            >
+              <option value="all">All status</option>
+              <option value="published">Published</option>
+              <option value="pipeline">Pipeline</option>
+              <option value="scheduled">Scheduled</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground/50" />
+          </div>
 
           {/* Stage filter */}
-          <select
-            value={filterStage}
-            onChange={(e) => setFilterStage(e.target.value)}
-            className="h-8 rounded-lg border border-border/60 bg-background px-2.5 text-xs font-medium text-muted-foreground"
-          >
-            <option value="all">All stages</option>
-            <option value="idea">Idea</option>
-            <option value="outline_done">Outline</option>
-            <option value="draft_done">Draft</option>
-            <option value="reviewed">Reviewed</option>
-            <option value="marketing_done">Marketing</option>
-            <option value="approved">Approved</option>
-          </select>
+          <div className="relative">
+            <select
+              value={filterStage}
+              onChange={(e) => setFilterStage(e.target.value)}
+              className="h-8 appearance-none rounded-lg border border-border/60 bg-background pl-2.5 pr-7 text-xs font-medium text-muted-foreground outline-none transition-colors hover:border-border/80 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 cursor-pointer"
+            >
+              <option value="all">All stages</option>
+              <option value="idea">Idea</option>
+              <option value="outline_done">Outline</option>
+              <option value="draft_done">Draft</option>
+              <option value="reviewed">Reviewed</option>
+              <option value="marketing_done">Marketing</option>
+              <option value="approved">Approved</option>
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground/50" />
+          </div>
 
           {/* Toggle sidebar */}
-          <button
+          <Button
+            variant="outline"
+            size="icon-sm"
             onClick={() => setSidebarOpen((o) => !o)}
-            className={cn(
-              "rounded-lg border p-1.5 transition-colors",
-              sidebarOpen
-                ? "border-brand/40 bg-brand/5 text-brand"
-                : "border-border/60 text-muted-foreground hover:text-foreground hover:bg-muted/50",
-            )}
+            className={sidebarOpen ? "border-brand/40 bg-brand/5 text-brand hover:bg-brand/10" : ""}
           >
             <SlidersHorizontal className="size-4" />
-          </button>
+          </Button>
 
-          <button
+          <Button
+            variant="outline"
+            size="xs"
             onClick={goToday}
-            className="rounded-lg border border-border/60 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
           >
             Today
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="outline"
+            size="icon-sm"
             onClick={goPrev}
-            className="rounded-lg border border-border/60 p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
           >
             <ChevronLeft className="size-4" />
-          </button>
-          <button
+          </Button>
+          <Button
+            variant="outline"
+            size="icon-sm"
             onClick={goNext}
-            className="rounded-lg border border-border/60 p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
           >
             <ChevronRight className="size-4" />
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -786,6 +783,111 @@ export function CalendarClientShell({
           </motion.aside>
         )}
       </div>
+
+      {/* ── Centered dialog for selected date ── */}
+      <AnimatePresence>
+        {selectedDate && selectedItems.length > 0 && (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+          >
+            {/* Backdrop */}
+            <motion.div
+              className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedDate(null)}
+            />
+
+            {/* Dialog card */}
+            <motion.div
+              className="relative w-full max-w-md rounded-2xl border border-border/60 bg-card shadow-2xl"
+              initial={{ opacity: 0, scale: 0.95, y: 8 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 8 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+            >
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-border/30 px-6 py-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">
+                    {selectedDateLabel}
+                  </h3>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {selectedItems.length} item{selectedItems.length !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setSelectedDate(null)}
+                  className="flex size-7 items-center justify-center rounded-full text-muted-foreground/60 hover:bg-muted hover:text-foreground transition-colors"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+
+              {/* Items list */}
+              <div className="max-h-[50vh] overflow-y-auto px-6 py-4 space-y-2">
+                {selectedItems.map((item) => (
+                  <a
+                    key={`dialog-${item.type}-${item.id}`}
+                    href={
+                      item.type === "post" && item.slug
+                        ? `/blog/${item.slug}`
+                        : `/admin/blog-ideas/${item.id}`
+                    }
+                    className="group flex items-start gap-3 rounded-xl border border-border/30 p-3 transition-all hover:border-border/60 hover:bg-muted/30 hover:shadow-sm"
+                  >
+                    {/* Type indicator */}
+                    <span
+                      className={cn(
+                        "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg text-white text-[10px] font-bold",
+                        item.type === "post"
+                          ? "bg-emerald-500"
+                          : item.scheduled_at
+                            ? "bg-sky-500"
+                            : "bg-amber-500",
+                      )}
+                    >
+                      {item.type === "post" ? "P" : item.scheduled_at ? "S" : "I"}
+                    </span>
+
+                    {/* Content */}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground break-words group-hover:text-brand transition-colors">
+                        {item.title}
+                      </p>
+                      <div className="mt-1 flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] text-muted-foreground">
+                          {item.type === "post"
+                            ? "Published"
+                            : item.scheduled_at
+                              ? "Scheduled"
+                              : "Pipeline"}
+                        </span>
+                        {stageBadge(item.stage)}
+                      </div>
+                    </div>
+
+                    {/* Arrow */}
+                    <ArrowUpRight className="mt-1 size-3.5 shrink-0 text-muted-foreground/20 transition-colors group-hover:text-muted-foreground/60" />
+                  </a>
+                ))}
+              </div>
+
+              {/* Footer */}
+              <div className="border-t border-border/30 px-6 py-3">
+                <p className="text-[11px] text-muted-foreground/60 text-center">
+                  Click an item to open it
+                </p>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

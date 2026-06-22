@@ -84,7 +84,7 @@ export default async function AdminDashboardPage() {
       <section className="rounded-2xl border border-border/40 bg-card">
         <div className="flex items-center gap-3 border-b border-border/30 px-6 py-4">
           <span className="flex size-7 items-center justify-center rounded-lg bg-green-500/10">
-            <span className="size-2 rounded-full bg-green-500 shadow-[0_0_6px_rgba(80,179,58,0.3)]" aria-hidden />
+            <GitBranch className="size-3.5 text-green-500" aria-hidden />
           </span>
           <div>
             <h2 className="text-sm font-semibold text-foreground">

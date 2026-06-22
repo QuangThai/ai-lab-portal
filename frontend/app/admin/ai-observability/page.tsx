@@ -1,7 +1,7 @@
 import { headers } from "next/headers";
 
 import { AdminBackLink } from "@/components/admin/admin-back-link";
-import type { StageStats, Stats } from "./helpers";
+import type { Stats } from "./helpers";
 import { emptyStats, formatTime, stageLabel } from "./helpers";
 import { AdminPageHeader } from "@/components/admin/admin-page-header";
 import { adminPageStackClass } from "@/components/admin/admin-ui";
@@ -364,7 +364,9 @@ export default async function AiObservabilityPage() {
                   </thead>
                   <tbody>
                     {costStats.top_entities.map((item) => {
-                      const pct = (item.cost / costStats.total_cost) * 100;
+                      const pct = costStats.total_cost > 0
+                        ? (item.cost / costStats.total_cost) * 100
+                        : 0;
                       return (
                         <tr
                           key={item.entity}
@@ -376,8 +378,19 @@ export default async function AiObservabilityPage() {
                           <td className="px-5 py-3 text-right font-mono text-muted-foreground">
                             {formatCost(item.cost)}
                           </td>
-                          <td className="px-5 py-3 text-right text-muted-foreground">
-                            {pct.toFixed(1)}%
+                          <td className="px-5 py-3 text-right">
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium",
+                                pct > 20
+                                  ? "bg-rose-50 text-rose-700 dark:bg-rose-950/20 dark:text-rose-400"
+                                  : pct > 5
+                                    ? "bg-amber-50 text-amber-700 dark:bg-amber-950/20 dark:text-amber-400"
+                                    : "bg-muted/50 text-muted-foreground",
+                              )}
+                            >
+                              {pct.toFixed(1)}%
+                            </span>
                           </td>
                         </tr>
                       );
@@ -401,39 +414,45 @@ export default async function AiObservabilityPage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-border/30 text-xs text-muted-foreground">
-                <th className="px-5 py-3 font-medium">Stage</th>
-                <th className="px-5 py-3 font-medium">Runs</th>
-                <th className="px-5 py-3 font-medium">Avg latency</th>
-                <th className="px-5 py-3 font-medium">Avg tokens</th>
-                <th className="px-5 py-3 font-medium">Total tokens</th>
+                <th className="px-5 py-3 font-medium text-left">Stage</th>
+                <th className="px-5 py-3 font-medium text-right">Runs</th>
+                <th className="px-5 py-3 font-medium text-right">Avg latency</th>
+                <th className="px-5 py-3 font-medium text-right">Avg tokens</th>
+                <th className="px-5 py-3 font-medium text-right">Total tokens</th>
               </tr>
             </thead>
             <tbody>
               {stageNames.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-8 text-center text-muted-foreground">
-                    No runs recorded yet
+                  <td colSpan={5} className="px-5 py-12 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="text-muted-foreground/40 text-[11px]">—</span>
+                      <span className="text-xs text-muted-foreground/60">No runs recorded yet</span>
+                    </div>
                   </td>
                 </tr>
               ) : (
-                stageNames.map((name) => {
+                stageNames.map((name, idx) => {
                   const s = stats.stages[name];
                   return (
                     <tr
                       key={name}
-                      className="border-b border-border/20 transition-colors hover:bg-muted/30"
+                      className={cn(
+                        "transition-colors hover:bg-muted/30",
+                        idx % 2 === 0 ? "bg-muted/10" : "",
+                      )}
                     >
                       <td className="px-5 py-3 font-medium text-foreground">
                         {stageLabel(name)}
                       </td>
-                      <td className="px-5 py-3 text-muted-foreground">{s.count}</td>
-                      <td className="px-5 py-3 text-muted-foreground">
+                      <td className="px-5 py-3 text-right text-muted-foreground">{s.count}</td>
+                      <td className="px-5 py-3 text-right text-muted-foreground">
                         {s.avg_latency_ms.toFixed(0)}ms
                       </td>
-                      <td className="px-5 py-3 text-muted-foreground">
+                      <td className="px-5 py-3 text-right text-muted-foreground">
                         {s.avg_total_tokens.toFixed(0)}
                       </td>
-                      <td className="px-5 py-3 text-muted-foreground">
+                      <td className="px-5 py-3 text-right text-muted-foreground">
                         {s.total_tokens.toLocaleString()}
                       </td>
                     </tr>
@@ -456,26 +475,32 @@ export default async function AiObservabilityPage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-border/30 text-xs text-muted-foreground">
-                <th className="px-5 py-3 font-medium">Time</th>
-                <th className="px-5 py-3 font-medium">Stage</th>
-                <th className="px-5 py-3 font-medium">Entity</th>
-                <th className="px-5 py-3 font-medium">Status</th>
-                <th className="px-5 py-3 font-medium">Latency</th>
-                <th className="px-5 py-3 font-medium">Tokens</th>
+                <th className="px-5 py-3 font-medium text-left">Time</th>
+                <th className="px-5 py-3 font-medium text-left">Stage</th>
+                <th className="px-5 py-3 font-medium text-left">Entity</th>
+                <th className="px-5 py-3 font-medium text-left">Status</th>
+                <th className="px-5 py-3 font-medium text-right">Latency</th>
+                <th className="px-5 py-3 font-medium text-right">Tokens</th>
               </tr>
             </thead>
             <tbody>
               {runs.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-5 py-8 text-center text-muted-foreground">
-                    No runs recorded yet
+                  <td colSpan={6} className="px-5 py-12 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <span className="text-muted-foreground/40 text-[11px]">—</span>
+                      <span className="text-xs text-muted-foreground/60">No runs recorded yet</span>
+                    </div>
                   </td>
                 </tr>
               ) : (
-                runs.map((run) => (
+                runs.map((run, idx) => (
                   <tr
                     key={run.id}
-                    className="border-b border-border/20 transition-colors hover:bg-muted/30"
+                    className={cn(
+                      "transition-colors hover:bg-muted/30",
+                      idx % 2 === 0 ? "bg-muted/10" : "",
+                    )}
                   >
                     <td className="whitespace-nowrap px-5 py-3 text-muted-foreground">
                       {formatTime(run.created_at)}
@@ -493,10 +518,10 @@ export default async function AiObservabilityPage() {
                     <td className="px-5 py-3">
                       <StatusBadge status={run.status} />
                     </td>
-                    <td className="px-5 py-3 text-muted-foreground">
+                    <td className="px-5 py-3 text-right text-muted-foreground font-mono text-xs">
                       {run.latency_ms != null ? `${run.latency_ms}ms` : "—"}
                     </td>
-                    <td className="px-5 py-3 text-muted-foreground">
+                    <td className="px-5 py-3 text-right text-muted-foreground font-mono text-xs">
                       {run.total_tokens != null
                         ? run.total_tokens.toLocaleString()
                         : "—"}
