@@ -313,9 +313,53 @@ function DraggableIdeaCard({
   );
 }
 
+/* ── FilterDropdown ── */
+
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+function FilterDropdown({
+  options,
+  value,
+  onChange,
+}: {
+  options: { value: string; label: string }[];
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const selectedLabel = options.find((o) => o.value === value)?.label ?? options[0]?.label ?? "";
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          size="xs"
+          className="flex items-center gap-1.5 text-muted-foreground data-[state=open]:text-foreground data-[state=open]:bg-muted min-w-[110px] justify-between"
+        >
+          <span className="truncate">{selectedLabel}</span>
+          <ChevronDown className="size-3 shrink-0 text-muted-foreground/50" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-[140px]">
+        <DropdownMenuRadioGroup value={value} onValueChange={onChange}>
+          {options.map((opt) => (
+            <DropdownMenuRadioItem key={opt.value} value={opt.value} className="text-xs">
+              {opt.label}
+            </DropdownMenuRadioItem>
+          ))}
+        </DropdownMenuRadioGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 /* ── Client shell ── */
-
-
 
 export function CalendarClientShell({
   initialData,
@@ -577,44 +621,42 @@ export function CalendarClientShell({
           </div>
 
           {/* Status filter */}
-          <div className="relative">
-            <select
-              value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
-              className="h-8 appearance-none rounded-lg border border-border/60 bg-background pl-2.5 pr-7 text-xs font-medium text-muted-foreground outline-none transition-colors hover:border-border/80 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 cursor-pointer"
-            >
-              <option value="all">All status</option>
-              <option value="published">Published</option>
-              <option value="pipeline">Pipeline</option>
-              <option value="scheduled">Scheduled</option>
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground/50" />
-          </div>
+          <FilterDropdown
+            options={[
+              { value: "all", label: "All status" },
+              { value: "published", label: "Published" },
+              { value: "pipeline", label: "Pipeline" },
+              { value: "scheduled", label: "Scheduled" },
+            ]}
+            value={filterStatus}
+            onChange={setFilterStatus}
+          />
 
           {/* Stage filter */}
-          <div className="relative">
-            <select
-              value={filterStage}
-              onChange={(e) => setFilterStage(e.target.value)}
-              className="h-8 appearance-none rounded-lg border border-border/60 bg-background pl-2.5 pr-7 text-xs font-medium text-muted-foreground outline-none transition-colors hover:border-border/80 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 cursor-pointer"
-            >
-              <option value="all">All stages</option>
-              <option value="idea">Idea</option>
-              <option value="outline_done">Outline</option>
-              <option value="draft_done">Draft</option>
-              <option value="reviewed">Reviewed</option>
-              <option value="marketing_done">Marketing</option>
-              <option value="approved">Approved</option>
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 size-3 text-muted-foreground/50" />
-          </div>
+          <FilterDropdown
+            options={[
+              { value: "all", label: "All stages" },
+              { value: "idea", label: "Idea" },
+              { value: "outline_done", label: "Outline" },
+              { value: "draft_done", label: "Draft" },
+              { value: "reviewed", label: "Reviewed" },
+              { value: "marketing_done", label: "Marketing" },
+              { value: "approved", label: "Approved" },
+            ]}
+            value={filterStage}
+            onChange={setFilterStage}
+          />
 
           {/* Toggle sidebar */}
           <Button
             variant="outline"
             size="icon-sm"
             onClick={() => setSidebarOpen((o) => !o)}
-            className={sidebarOpen ? "border-brand/40 bg-brand/5 text-brand hover:bg-brand/10" : ""}
+            className={cn(
+              sidebarOpen
+                ? "border-brand/40 bg-brand/5 text-brand hover:bg-brand/10"
+                : "text-muted-foreground",
+            )}
           >
             <SlidersHorizontal className="size-4" />
           </Button>
@@ -623,6 +665,7 @@ export function CalendarClientShell({
             variant="outline"
             size="xs"
             onClick={goToday}
+            className="text-muted-foreground"
           >
             Today
           </Button>
@@ -630,6 +673,7 @@ export function CalendarClientShell({
             variant="outline"
             size="icon-sm"
             onClick={goPrev}
+            className="text-muted-foreground"
           >
             <ChevronLeft className="size-4" />
           </Button>
@@ -637,6 +681,7 @@ export function CalendarClientShell({
             variant="outline"
             size="icon-sm"
             onClick={goNext}
+            className="text-muted-foreground"
           >
             <ChevronRight className="size-4" />
           </Button>
