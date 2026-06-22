@@ -266,7 +266,7 @@ Activated responsibilities:
 | H2 | Achieved | `scripts/bin/harness-cli`, `scripts/schema/001-init.sql`, durable story records, `docs/HARNESS_COMPONENTS.md`, `docs/HARNESS_MATURITY.md`, `docs/TRACE_SPEC.md`, and `docs/CONTEXT_RULES.md` define the Phase 2 surface. |
 | H3 | Achieved | Phase 3 adds `scripts/bin/harness-cli score-trace`, enriched friction context, the backlog outcome loop, `docs/benchmark-protocol.md`, benchmark runner (`scripts/harness_benchmark.py`), and benchmark comparison (`scripts/harness_benchmark_compare.py`). Compliance ≥ 85%, trace quality ≥ 2.3. |
 | H4 | Achieved | Phase 4 adds story-level `verify_command`, `story verify`, trace-time verification warnings, `scripts/verify_all_stories.py` (batch verification), `docs/verification-protocol.md`, and `docs/templates/validation-report-example.md`. Compliance 100%. |
-| H5 | Not achieved | No self-improvement protocol or automated evolution loop exists. |
+| H5 | Achieved | `docs/self-improvement-protocol.md` defines the improvement loop (friction→proposal→change→review). `scripts/drift_detector.py` detects stale docs, friction trends, and maturity mismatches. `scripts/backlog_review.py` compares predicted impact vs actual outcome for all 29 closed items. High-risk change protocol pauses for human confirmation. |
 
 ## Responsibility Activation
 
@@ -279,7 +279,7 @@ Activated responsibilities:
 | Task state | Missing | Partial | Covered | Covered | Covered | Covered |
 | Observability | Missing | Missing | Partial | Covered | Covered | Covered |
 | Failure attribution | Missing | Missing | Partial | Covered | Covered | Covered |
-| Verification | Missing | Partial | Partial | Partial | Covered | Covered |
+| Verification | Missing | Partial | Partial | Covered | Covered | Covered |
 | Permissions | Missing | Partial | Partial | Partial | Covered | Covered |
 | Entropy auditing | Missing | Missing | Partial | Covered | Covered | Covered |
 | Intervention recording | Missing | Partial | Partial | Covered | Covered | Covered |

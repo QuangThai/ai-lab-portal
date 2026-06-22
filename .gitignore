@@ -33,4 +33,4 @@ scripts/bin/harness-cli.exe
 *.py,cover
 .coverage
 .coverage
-.pi
+.pi*.log

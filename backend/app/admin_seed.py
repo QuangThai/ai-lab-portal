@@ -495,6 +495,7 @@ def create_admin_seed_router(settings: Settings) -> APIRouter:
                             id=str(uuid.uuid4().hex[:12]),
                             name=tag_name,
                             slug=tag_name.lower().replace(" ", "-"),
+                            created_at=datetime.now(UTC),
                         )
                     )
                     result.tags += 1
@@ -516,7 +517,6 @@ def create_admin_seed_router(settings: Settings) -> APIRouter:
                             status="published",
                             published_at=now,
                             content_markdown=post["content_markdown"],
-                            created_at=now,
                             updated_at=now,
                         )
                     )
@@ -533,14 +533,12 @@ def create_admin_seed_router(settings: Settings) -> APIRouter:
                             id=str(uuid.uuid4().hex[:12]),
                             slug=showcase["slug"],
                             title=showcase["title"],
-                            description=showcase["description"],
+                            hero_summary=showcase.get("hero_summary", showcase["description"]),
                             industry=showcase["industry"],
                             use_case=showcase["use_case"],
                             status="published",
                             published_at=now,
                             content_markdown=showcase["content_markdown"],
-                            created_at=now,
-                            updated_at=now,
                         )
                     )
                     result.showcases += 1
