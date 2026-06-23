@@ -76,10 +76,6 @@ jobs:
   backend-ci:
     name: Backend — lint + typecheck + test
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
-
     services:
       postgres:
         image: pgvector/pgvector:pg17
@@ -130,12 +126,14 @@ jobs:
           done
 
       - name: Run database migrations
+        working-directory: backend
         run: python -m alembic -c alembic.ini upgrade head
         env:
           AI_LAB_DATABASE_URL: postgresql+psycopg://ai_lab_test:ai_lab_test_password@localhost:5432/ai_lab_portal_test
           AI_LAB_ENVIRONMENT: testing
 
       - name: Run backend tests
+        working-directory: backend
         run: pytest -x -q --timeout=60
         env:
           AI_LAB_DATABASE_URL: postgresql+psycopg://ai_lab_test:ai_lab_test_password@localhost:5432/ai_lab_portal_test
@@ -164,7 +162,6 @@ jobs:
           cache-dependency-path: backend/pyproject.toml
 
       - name: Install backend
-        working-directory: backend
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
