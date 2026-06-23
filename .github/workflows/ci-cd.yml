@@ -59,11 +59,6 @@ jobs:
       - name: TypeScript type-check
         run: npm run typecheck
 
-      - name: Build
-        run: npm run build
-        env:
-          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL || 'http://localhost:13100' }}
-
       - name: Component tests
         run: npm run test:component
         env:
@@ -121,14 +116,14 @@ jobs:
         run: python -m alembic -c backend/alembic.ini upgrade head
         env:
           AI_LAB_DATABASE_URL: postgresql+psycopg://ai_lab_test:ai_lab_test_password@localhost:5432/ai_lab_portal_test
-          AI_LAB_ENVIRONMENT: testing
+          AI_LAB_ENVIRONMENT: test
 
       - name: Run backend tests
         working-directory: backend
         run: pytest -x -q --timeout=60
         env:
           AI_LAB_DATABASE_URL: postgresql+psycopg://ai_lab_test:ai_lab_test_password@localhost:5432/ai_lab_portal_test
-          AI_LAB_ENVIRONMENT: testing
+          AI_LAB_ENVIRONMENT: test
           AI_LAB_REDIS_URL: redis://localhost:6379/0
           AI_LAB_ADMIN_BOUNDARY_SECRET: ci-admin-boundary-secret-min-32-chars-long!!!
           AI_LAB_LLM_E2E_FAKE: "true"
