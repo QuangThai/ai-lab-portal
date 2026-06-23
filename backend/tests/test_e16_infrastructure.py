@@ -107,6 +107,17 @@ class TestBlogIdeaRepositoryUpdateFields:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
+def _collect_route_paths(routes_list):
+    """Recursively collect all route paths, handling included sub-routers."""
+    paths = []
+    for r in routes_list:
+        if hasattr(r, "path"):
+            paths.append(r.path)
+        if hasattr(r, "routes"):
+            paths.extend(_collect_route_paths(r.routes))
+    return paths
+
+
 class TestE16LlmBackendSwitching:
     """Tests that main.py switches between Fake and LLM services correctly
     based on AI_LAB_LLM_OPENAI_API_KEY availability.
@@ -115,32 +126,17 @@ class TestE16LlmBackendSwitching:
     inject env vars to control the behavior.
     """
 
-    def _collect_route_paths(routes):
-        """Recursively collect all route paths, handling included sub-routers."""
-        paths = []
-        for r in routes:
-            if hasattr(r, "path"):
-                paths.append(r.path)
-            if hasattr(r, "routes"):
-                paths.extend(_collect_route_paths(r.routes))
-        return paths
-
     def test_creates_fake_services_when_no_api_key(self, monkeypatch: pytest.MonkeyPatch):
         """Without API key, all three E16 agents use Fake*Service."""
         monkeypatch.delenv("AI_LAB_LLM_OPENAI_API_KEY", raising=False)
         monkeypatch.setenv("AI_LAB_LLM_ENVIRONMENT", "test")
         app = create_app()
 
-        # The router objects are stored on the app; we can verify the
-        # service type by checking the routes are registered.
-        # In practice, we verify the app starts without errors and the
-        # routes exist.
         routes = _collect_route_paths(app.routes)
         assert "/admin/blog-posts/{post_id}/repurpose" in routes
         assert "/admin/blog-posts/{post_id}/suggest-schedule" in routes
         assert "/admin/blog-ideas/{idea_id}/optimize-seo" in routes
 
-        # All routes should work without API key — they'll use Fake services
         assert app is not None
 
     def test_creates_app_with_openai_backend(self, monkeypatch: pytest.MonkeyPatch):

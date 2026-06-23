@@ -841,18 +841,19 @@ class TestSSEHelpers:
 # ===========================================================================
 
 
+def _collect_route_paths(routes_list):
+    """Recursively collect all route paths, handling included sub-routers."""
+    paths = []
+    for r in routes_list:
+        if hasattr(r, "path"):
+            paths.append(r.path)
+        if hasattr(r, "routes"):
+            paths.extend(_collect_route_paths(r.routes))
+    return paths
+
+
 class TestStreamingRoutes:
     """Verify that all streaming SSE endpoints are properly registered."""
-
-    def _collect_route_paths(routes):
-        """Recursively collect all route paths, handling included sub-routers."""
-        paths = []
-        for r in routes:
-            if hasattr(r, "path"):
-                paths.append(r.path)
-            if hasattr(r, "routes"):
-                paths.extend(_collect_route_paths(r.routes))
-        return paths
 
     def test_streaming_routes_registered(self):
         """All streaming endpoints are registered on the router."""
