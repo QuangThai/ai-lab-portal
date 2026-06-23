@@ -115,6 +115,16 @@ class TestE16LlmBackendSwitching:
     inject env vars to control the behavior.
     """
 
+    def _collect_route_paths(routes):
+        """Recursively collect all route paths, handling included sub-routers."""
+        paths = []
+        for r in routes:
+            if hasattr(r, "path"):
+                paths.append(r.path)
+            if hasattr(r, "routes"):
+                paths.extend(_collect_route_paths(r.routes))
+        return paths
+
     def test_creates_fake_services_when_no_api_key(self, monkeypatch: pytest.MonkeyPatch):
         """Without API key, all three E16 agents use Fake*Service."""
         monkeypatch.delenv("AI_LAB_LLM_OPENAI_API_KEY", raising=False)
@@ -125,7 +135,7 @@ class TestE16LlmBackendSwitching:
         # service type by checking the routes are registered.
         # In practice, we verify the app starts without errors and the
         # routes exist.
-        routes = [r.path for r in app.routes]
+        routes = _collect_route_paths(app.routes)
         assert "/admin/blog-posts/{post_id}/repurpose" in routes
         assert "/admin/blog-posts/{post_id}/suggest-schedule" in routes
         assert "/admin/blog-ideas/{idea_id}/optimize-seo" in routes

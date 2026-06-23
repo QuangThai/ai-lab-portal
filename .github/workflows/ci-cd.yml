@@ -127,7 +127,6 @@ jobs:
           AI_LAB_ENVIRONMENT: test
           AI_LAB_REDIS_URL: redis://localhost:6379/0
           AI_LAB_ADMIN_BOUNDARY_SECRET: ci-admin-boundary-secret-min-32-chars-long!!!
-          AI_LAB_LLM_E2E_FAKE: "true"
 
   # ═════════════════════════════════════════════════════════════════════════
   # E2E — Playwright tests (full stack via Docker Compose)

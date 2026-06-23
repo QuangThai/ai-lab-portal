@@ -844,8 +844,18 @@ class TestSSEHelpers:
 class TestStreamingRoutes:
     """Verify that all streaming SSE endpoints are properly registered."""
 
+    def _collect_route_paths(routes):
+        """Recursively collect all route paths, handling included sub-routers."""
+        paths = []
+        for r in routes:
+            if hasattr(r, "path"):
+                paths.append(r.path)
+            if hasattr(r, "routes"):
+                paths.extend(_collect_route_paths(r.routes))
+        return paths
+
     def test_streaming_routes_registered(self):
-        """All 5 streaming endpoints are registered on the router."""
+        """All streaming endpoints are registered on the router."""
         from backend.app.blog_ideas import create_blog_idea_routes
         from backend.app.blog_ideas import BlogIdeaRepository
         from backend.app.settings import Settings
@@ -855,9 +865,9 @@ class TestStreamingRoutes:
         router = create_blog_idea_routes(repo, settings)
 
         stream_routes = [
-            r.path
-            for r in router.routes
-            if hasattr(r, "path") and "generate-stream" in r.path
+            p
+            for p in _collect_route_paths(router.routes)
+            if "generate-stream" in p
         ]
         assert "/admin/blog-ideas/generate-stream/idea" in stream_routes
         assert "/admin/blog-ideas/{idea_id}/generate-stream/outline" in stream_routes
