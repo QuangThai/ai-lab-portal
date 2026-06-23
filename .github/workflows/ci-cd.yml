@@ -116,14 +116,31 @@ jobs:
 
       - name: Wait for services
         run: |
-          until pg_isready -h localhost -p 5432 -U ai_lab_test -d ai_lab_portal_test; do
-            echo "Waiting for PostgreSQL..."
-            sleep 2
-          done
-          until redis-cli -h localhost -p 6379 ping; do
-            echo "Waiting for Redis..."
-            sleep 2
-          done
+          echo "Waiting for PostgreSQL..."
+          python -c "
+import psycopg, time
+for i in range(30):
+    try:
+        psycopg.connect('dbname=ai_lab_portal_test user=ai_lab_test password=ai_lab_test_password host=localhost port=5432').close()
+        print('PostgreSQL ready')
+        break
+    except Exception as e:
+        print(f'Waiting... ({e})')
+        time.sleep(2)
+"
+          echo "Waiting for Redis..."
+          python -c "
+import redis, time
+for i in range(30):
+    try:
+        r = redis.Redis(host='localhost', port=6379)
+        r.ping()
+        print('Redis ready')
+        break
+    except Exception as e:
+        print(f'Waiting... ({e})')
+        time.sleep(2)
+"
 
       - name: Run database migrations
         working-directory: backend
