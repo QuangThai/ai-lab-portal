@@ -1,0 +1,134 @@
+# Render Blueprint — AI Lab Portal
+#
+# Deploys the full stack: Postgres, Redis, Backend API, Celery worker, and Next.js frontend.
+#
+# Quick start:
+#   1. Push this repo to GitHub and connect it to Render.
+#   2. Create a Render Blueprint using this file.
+#   3. Set the required env vars (marked # required) in the Render dashboard.
+#
+# Render automatically provisions Postgres and Redis from the blueprint.
+
+databases:
+  - name: ai-lab-portal-db
+    databaseName: ai_lab_portal
+    user: ai_lab
+    plan: starter
+    ipAllowList: [] # private network only
+
+services:
+  # ── Backend API (FastAPI / uvicorn) ──────────────────────────────────────
+  - type: web
+    name: ai-lab-portal-backend
+    runtime: image
+    image:
+      dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: AI_LAB_ENVIRONMENT
+        value: production
+      - key: AI_LAB_DATABASE_URL
+        fromDatabase:
+          name: ai-lab-portal-db
+          property: connectionString
+        # Render Postgres returns `postgresql://...`; SQLAlchemy needs `postgresql+psycopg://...`
+        # Use a startup script to transform it, or override:
+      - key: AI_LAB_DATABASE_URL_FULL
+        sync: false # required: set manually to postgresql+psycopg://... with Render DB credentials
+      - key: AI_LAB_REDIS_URL
+        fromService:
+          type: redis
+          name: ai-lab-portal-redis
+          property: connectionString
+      - key: AI_LAB_ADMIN_BOUNDARY_SECRET
+        sync: false # required: generate a random 32+ char secret
+      - key: AI_LAB_LLM_OPENAI_API_KEY
+        sync: false # required for AI Blog Agent features
+      - key: AI_LAB_LLM_E2E_FAKE
+        value: ""
+      - key: PORT
+        value: "8000"
+    healthCheckPath: /health
+    healthCheckTimeout: 10
+    buildFilter:
+      paths:
+        - backend/**
+        - pyproject.toml
+        - scripts/**
+    domains:
+      - api.onrender.com
+
+  # ── Celery Worker ────────────────────────────────────────────────────────
+  - type: worker
+    name: ai-lab-portal-worker
+    runtime: image
+    image:
+      dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    envVars:
+      - key: AI_LAB_ENVIRONMENT
+        value: production
+      - key: AI_LAB_DATABASE_URL
+        fromDatabase:
+          name: ai-lab-portal-db
+          property: connectionString
+      - key: AI_LAB_REDIS_URL
+        fromService:
+          type: redis
+          name: ai-lab-portal-redis
+          property: connectionString
+      - key: AI_LAB_ADMIN_BOUNDARY_SECRET
+        sync: false
+      - key: AI_LAB_LLM_OPENAI_API_KEY
+        sync: false
+      - key: AI_LAB_LLM_E2E_FAKE
+        value: ""
+    buildFilter:
+      paths:
+        - backend/**
+        - pyproject.toml
+        - scripts/**
+    # Override CMD to run Celery worker instead of uvicorn
+    startCommand: python -m celery -A backend.app.celery_app worker --loglevel=info --concurrency=2
+
+  # ── Frontend (Next.js) ───────────────────────────────────────────────────
+  - type: web
+    name: ai-lab-portal-frontend
+    runtime: image
+    image:
+      dockerfilePath: ./frontend/Dockerfile
+      dockerContext: .
+      buildTarget: production
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://ai-lab-portal-frontend.onrender.com
+      - key: BETTER_AUTH_SECRET
+        sync: false # required: generate a random 32+ char secret
+      - key: BETTER_AUTH_URL
+        value: https://ai-lab-portal-frontend.onrender.com
+      - key: BETTER_AUTH_TRUSTED_ORIGINS
+        value: https://ai-lab-portal-frontend.onrender.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-lab-portal-db
+          property: connectionString
+      - key: BACKEND_INTERNAL_URL
+        value: http://ai-lab-portal-backend:8000
+      - key: BACKEND_PUBLIC_URL
+        value: https://ai-lab-portal-backend.onrender.com
+      - key: ADMIN_BOUNDARY_SECRET
+        sync: false # must match AI_LAB_ADMIN_BOUNDARY_SECRET
+    buildFilter:
+      paths:
+        - frontend/**
+        - scripts/**
+    healthCheckPath: /
+    healthCheckTimeout: 30
+
+  # ── Managed Redis ────────────────────────────────────────────────────────
+  - type: redis
+    name: ai-lab-portal-redis
+    plan: free
+    ipAllowList: [] # private network only
