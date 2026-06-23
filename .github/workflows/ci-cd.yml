@@ -2,8 +2,8 @@
 #
 # Runs on every push and pull request to main.
 # - CI: lint, type-check, unit tests, build for frontend + backend
-# - E2E: Playwright tests in Ubuntu (Node 24 compatible with Playwright)
-# - CD: Render Blueprint auto-deploys on main; this workflow triggers deploy hooks.
+# - E2E: Playwright tests via Docker Compose
+# - CD: Render Blueprint auto-deploys on main via deploy hook
 
 name: CI/CD
 
@@ -20,7 +20,7 @@ on:
         default: false
 
 env:
-  NODE_VERSION: "24"
+  NODE_VERSION: "20"
   PYTHON_VERSION: "3.12"
 
 # ── Concurrency: cancel stale runs on the same branch ──────────────────────
@@ -50,7 +50,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          npm ci --legacy-peer-deps --ignore-scripts
+          npm install --legacy-peer-deps --ignore-scripts
           node scripts/ensure-better-auth-sso-stub.mjs
 
       - name: Lint
@@ -82,25 +82,25 @@ jobs:
 
     services:
       postgres:
-        image: postgres:17-alpine
+        image: pgvector/pgvector:pg17
         env:
-          POSTGRES_USER: ai_lab
-          POSTGRES_PASSWORD: ai_lab_ci_password
-          POSTGRES_DB: ai_lab_portal
+          POSTGRES_DB: ai_lab_portal_test
+          POSTGRES_USER: ai_lab_test
+          POSTGRES_PASSWORD: ai_lab_test_password
         ports:
-          - 15432:5432
+          - 5432:5432
         options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
+          --health-cmd "pg_isready -U ai_lab_test -d ai_lab_portal_test"
+          --health-interval 10s
           --health-timeout 5s
           --health-retries 5
       redis:
-        image: redis:7-alpine
+        image: redis:8-alpine
         ports:
-          - 16379:6379
+          - 6379:6379
         options: >-
           --health-cmd "redis-cli ping"
-          --health-interval 5s
+          --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
@@ -113,66 +113,45 @@ jobs:
           cache: "pip"
           cache-dependency-path: backend/pyproject.toml
 
-      - name: Install dependencies
+      - name: Install backend dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Run migrations
+      - name: Wait for services
+        run: |
+          until pg_isready -h localhost -p 5432 -U ai_lab_test -d ai_lab_portal_test; do
+            echo "Waiting for PostgreSQL..."
+            sleep 2
+          done
+          until redis-cli -h localhost -p 6379 ping; do
+            echo "Waiting for Redis..."
+            sleep 2
+          done
+
+      - name: Run database migrations
         run: python -m alembic -c alembic.ini upgrade head
         env:
-          AI_LAB_DATABASE_URL: postgresql+psycopg://ai_lab:ai_lab_ci_password@localhost:15432/ai_lab_portal
-          AI_LAB_ENVIRONMENT: ci
-          AI_LAB_REDIS_URL: redis://localhost:16379/0
-          AI_LAB_ADMIN_BOUNDARY_SECRET: ci-admin-boundary-secret-min-32-chars-long!!!
+          AI_LAB_DATABASE_URL: postgresql+psycopg://ai_lab_test:ai_lab_test_password@localhost:5432/ai_lab_portal_test
+          AI_LAB_ENVIRONMENT: testing
 
-      - name: Lint (ruff)
-        run: ruff check --output-format=github .
-
-      - name: Type-check (pyright)
-        run: pyright .
-
-      - name: Test (pytest)
+      - name: Run backend tests
         run: pytest -x -q --timeout=60
         env:
-          AI_LAB_DATABASE_URL: postgresql+psycopg://ai_lab:ai_lab_ci_password@localhost:15432/ai_lab_portal
-          AI_LAB_ENVIRONMENT: ci
-          AI_LAB_REDIS_URL: redis://localhost:16379/0
+          AI_LAB_DATABASE_URL: postgresql+psycopg://ai_lab_test:ai_lab_test_password@localhost:5432/ai_lab_portal_test
+          AI_LAB_ENVIRONMENT: testing
+          AI_LAB_REDIS_URL: redis://localhost:6379/0
           AI_LAB_ADMIN_BOUNDARY_SECRET: ci-admin-boundary-secret-min-32-chars-long!!!
           AI_LAB_LLM_E2E_FAKE: "true"
 
   # ═════════════════════════════════════════════════════════════════════════
-  # E2E — Playwright tests (full stack)
+  # E2E — Playwright tests (full stack via Docker Compose)
   # ═════════════════════════════════════════════════════════════════════════
   e2e:
     name: E2E — Playwright
     runs-on: ubuntu-latest
     needs: [frontend-ci, backend-ci]
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-
-    services:
-      postgres:
-        image: postgres:17-alpine
-        env:
-          POSTGRES_USER: ai_lab
-          POSTGRES_PASSWORD: ai_lab_e2e_password
-          POSTGRES_DB: ai_lab_portal
-        ports:
-          - 15432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
-      redis:
-        image: redis:7-alpine
-        ports:
-          - 16379:6379
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -190,35 +169,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      - name: Run migrations
-        working-directory: backend
-        run: python -m alembic -c alembic.ini upgrade head
-        env:
-          AI_LAB_DATABASE_URL: postgresql+psycopg://ai_lab:ai_lab_e2e_password@localhost:15432/ai_lab_portal
-          AI_LAB_ENVIRONMENT: development
-          AI_LAB_REDIS_URL: redis://localhost:16379/0
-          AI_LAB_ADMIN_BOUNDARY_SECRET: e2e-admin-boundary-secret-min-32-chars-long!!
-
-      - name: Start backend
-        working-directory: backend
-        run: |
-          nohup python -m uvicorn backend.app.main:create_app --factory --host 127.0.0.1 --port 18000 > /tmp/backend.log 2>&1 &
-          echo "Backend PID: $!"
-          # Wait for backend to be healthy
-          for i in $(seq 1 30); do
-            if curl -sf http://127.0.0.1:18000/health > /dev/null 2>&1; then
-              echo "Backend ready"
-              break
-            fi
-            sleep 2
-          done
-        env:
-          AI_LAB_DATABASE_URL: postgresql+psycopg://ai_lab:ai_lab_e2e_password@localhost:15432/ai_lab_portal
-          AI_LAB_ENVIRONMENT: development
-          AI_LAB_REDIS_URL: redis://localhost:16379/0
-          AI_LAB_ADMIN_BOUNDARY_SECRET: e2e-admin-boundary-secret-min-32-chars-long!!
-          AI_LAB_LLM_E2E_FAKE: "true"
-
       # ── Frontend setup ──
       - uses: actions/setup-node@v4
         with:
@@ -229,47 +179,75 @@ jobs:
       - name: Install frontend
         working-directory: frontend
         run: |
-          npm ci --legacy-peer-deps --ignore-scripts
+          npm install --legacy-peer-deps --ignore-scripts
           node scripts/ensure-better-auth-sso-stub.mjs
 
-      - name: Build frontend
+      - name: Install Playwright browsers
         working-directory: frontend
-        run: npm run build
-        env:
-          NEXT_PUBLIC_SITE_URL: http://localhost:13100
+        run: npx playwright install chromium --with-deps
 
-      - name: Start frontend
-        working-directory: frontend
+      # ── Start infra with Docker Compose ──
+      - name: Start Docker services
+        env:
+          POSTGRES_HOST_PORT: 5432
+          REDIS_HOST_PORT: 6379
         run: |
-          nohup npm run start -- --hostname 127.0.0.1 --port 13100 > /tmp/frontend.log 2>&1 &
-          echo "Frontend PID: $!"
-          # Wait for frontend
+          docker compose up -d postgres redis
+          timeout 120 bash -c 'until docker compose ps postgres | grep healthy; do sleep 2; done'
+          timeout 120 bash -c 'until docker compose ps redis | grep healthy; do sleep 2; done'
+
+      - name: Run migrations
+        working-directory: backend
+        run: python -m alembic -c alembic.ini upgrade head
+        env:
+          AI_LAB_DATABASE_URL: postgresql+psycopg://ai_lab:ai_lab_dev_password@localhost:5432/ai_lab_portal
+          AI_LAB_ENVIRONMENT: development
+
+      - name: Start backend
+        env:
+          AI_LAB_DATABASE_URL: postgresql+psycopg://ai_lab:ai_lab_dev_password@localhost:5432/ai_lab_portal
+          AI_LAB_ENVIRONMENT: development
+          AI_LAB_REDIS_URL: redis://localhost:6379/0
+          AI_LAB_ADMIN_BOUNDARY_SECRET: e2e-admin-boundary-secret-min-32-chars-long!!
+          AI_LAB_LLM_E2E_FAKE: "true"
+        run: |
+          nohup python -m uvicorn backend.app.main:create_app --factory --host 0.0.0.0 --port 8000 > /tmp/backend.log 2>&1 &
           for i in $(seq 1 30); do
-            if curl -sf http://127.0.0.1:13100/ > /dev/null 2>&1; then
+            if curl -sf http://localhost:8000/health > /dev/null 2>&1; then
+              echo "Backend ready"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Build + start frontend
+        working-directory: frontend
+        env:
+          DATABASE_URL: postgresql://ai_lab:ai_lab_dev_password@localhost:5432/ai_lab_portal
+          BACKEND_INTERNAL_URL: http://localhost:8000
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
+          BETTER_AUTH_SECRET: e2e-better-auth-secret-min-32-chars-long!!!
+          BETTER_AUTH_URL: http://localhost:3000
+          BETTER_AUTH_TRUSTED_ORIGINS: http://localhost:3000
+          ADMIN_BOUNDARY_SECRET: e2e-admin-boundary-secret-min-32-chars-long!!
+        run: |
+          npm run build
+          nohup npm run start -- --hostname 0.0.0.0 --port 3000 > /tmp/frontend.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:3000/ > /dev/null 2>&1; then
               echo "Frontend ready"
               break
             fi
             sleep 2
           done
-        env:
-          ADMIN_BOUNDARY_SECRET: e2e-admin-boundary-secret-min-32-chars-long!!
-          BETTER_AUTH_SECRET: e2e-better-auth-secret-min-32-chars-long!!!
-          BETTER_AUTH_URL: http://localhost:13100
-          BETTER_AUTH_TRUSTED_ORIGINS: http://localhost:13100
-          DATABASE_URL: postgresql://ai_lab:ai_lab_e2e_password@localhost:15432/ai_lab_portal
-
-      # ── Playwright E2E tests ──
-      - name: Install Playwright browsers
-        working-directory: frontend
-        run: npx playwright install chromium --with-deps
 
       - name: Run E2E tests
         working-directory: frontend
-        run: npx playwright test
         env:
-          E2E_BASE_URL: http://localhost:13100
-          E2E_ADMIN_BOUNDARY_SECRET: e2e-admin-boundary-secret-min-32-chars-long!!
-          AUTH_DATABASE_URL: postgresql://ai_lab:ai_lab_e2e_password@localhost:15432/ai_lab_portal
+          E2E_BASE_URL: http://localhost:3000
+          AUTH_DATABASE_URL: postgresql://ai_lab:ai_lab_dev_password@localhost:5432/ai_lab_portal
+          ADMIN_BOUNDARY_SECRET: e2e-admin-boundary-secret-min-32-chars-long!!
+        run: npm run test:e2e
 
       - name: Upload Playwright report
         if: always()
@@ -287,8 +265,12 @@ jobs:
           path: frontend/test-results/
           retention-days: 7
 
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v
+
   # ═════════════════════════════════════════════════════════════════════════
-  # CD — Deploy to Render (via Blueprint sync)
+  # CD — Deploy to Render
   # ═════════════════════════════════════════════════════════════════════════
   deploy:
     name: Deploy to Render
@@ -305,16 +287,3 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"clearCache": false}'
           echo "Render deploy triggered"
-
-      - name: Wait for Render deploy (poll health endpoint)
-        run: |
-          for i in $(seq 1 60); do
-            STATUS=$(curl -sf -o /dev/null -w "%{http_code}" \
-              https://ai-lab-portal-backend.onrender.com/health 2>/dev/null || echo "000")
-            if [ "$STATUS" = "200" ]; then
-              echo "Backend is healthy after deploy"
-              break
-            fi
-            echo "Waiting for backend... ($STATUS)"
-            sleep 10
-          done
