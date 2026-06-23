@@ -27,14 +27,10 @@ services:
     envVars:
       - key: AI_LAB_ENVIRONMENT
         value: production
+      # Render Postgres returns `postgresql://...`; SQLAlchemy needs `postgresql+psycopg://...`.
+      # Set manually in Render Dashboard: postgresql+psycopg://user:pass@host:5432/ai_lab_portal
       - key: AI_LAB_DATABASE_URL
-        fromDatabase:
-          name: ai-lab-portal-db
-          property: connectionString
-        # Render Postgres returns `postgresql://...`; SQLAlchemy needs `postgresql+psycopg://...`
-        # Use a startup script to transform it, or override:
-      - key: AI_LAB_DATABASE_URL_FULL
-        sync: false # required: set manually to postgresql+psycopg://... with Render DB credentials
+        sync: false # required: set to postgresql+psycopg://... with Render DB credentials
       - key: AI_LAB_REDIS_URL
         fromService:
           type: redis

@@ -16,7 +16,7 @@ def test_alembic_head_includes_user_follows() -> None:
     config.set_main_option("script_location", _migrations_dir())
     script = ScriptDirectory.from_config(config)
 
-    assert script.get_current_head() == "89295a3e1dde"
+    assert script.get_current_head() == "20260622_0045"
     revisions = {rev.revision for rev in script.walk_revisions()}
     assert "20260602_0002" in revisions
     assert "20260602_0005" in revisions
@@ -25,6 +25,7 @@ def test_alembic_head_includes_user_follows() -> None:
     assert "34f8eda3de32" in revisions  # add seo_audit columns
     assert "c624a407dcc7" in revisions  # add updated_at + cover_image_url
     assert "89295a3e1dde" in revisions  # create blog_page_views + blog_post_revisions + blog_series
+    assert "20260622_0045" in revisions  # add preview/group_key/link to notifications
 
 
 def test_empty_foundation_migration_has_no_domain_tables() -> None:

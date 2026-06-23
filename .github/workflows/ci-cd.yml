@@ -33,7 +33,7 @@ jobs:
   # CI — Frontend
   # ═════════════════════════════════════════════════════════════════════════
   frontend-ci:
-    name: Frontend — lint + typecheck + build
+    name: Frontend — lint + typecheck + tests
     runs-on: ubuntu-latest
     defaults:
       run:
