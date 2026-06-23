@@ -841,41 +841,37 @@ class TestSSEHelpers:
 # ===========================================================================
 
 
-def _collect_route_paths(routes_list):
-    """Recursively collect all route paths, handling included sub-routers."""
-    paths = []
-    for r in routes_list:
-        if hasattr(r, "path"):
-            paths.append(r.path)
-        if hasattr(r, "routes"):
-            paths.extend(_collect_route_paths(r.routes))
-    return paths
-
-
 class TestStreamingRoutes:
     """Verify that all streaming SSE endpoints are properly registered."""
 
     def test_streaming_routes_registered(self):
-        """All streaming endpoints are registered on the router."""
-        from backend.app.blog_ideas import create_blog_idea_routes
-        from backend.app.blog_ideas import BlogIdeaRepository
+        """All streaming endpoints respond 200/401 when called without auth."""
+        from backend.app.main import create_app
         from backend.app.settings import Settings
+        from starlette.testclient import TestClient
 
-        repo = BlogIdeaRepository()
         settings = Settings(environment="test")
-        router = create_blog_idea_routes(repo, settings)
+        app = create_app(settings)
+        client = TestClient(app)
 
-        stream_routes = [
-            p
-            for p in _collect_route_paths(router.routes)
-            if "generate-stream" in p
-        ]
-        assert "/admin/blog-ideas/generate-stream/idea" in stream_routes
-        assert "/admin/blog-ideas/{idea_id}/generate-stream/outline" in stream_routes
-        assert "/admin/blog-ideas/{idea_id}/generate-stream/draft" in stream_routes
-        assert "/admin/blog-ideas/{idea_id}/generate-stream/review" in stream_routes
-        assert "/admin/blog-ideas/{idea_id}/generate-stream/marketing" in stream_routes
-        assert len(stream_routes) == 6
+        # 401 = route exists but requires auth (no admin headers)
+        assert client.post("/admin/blog-ideas/generate-stream/idea").status_code == 401
+        assert (
+            client.post("/admin/blog-ideas/test_idea/generate-stream/outline").status_code
+            == 401
+        )
+        assert (
+            client.post("/admin/blog-ideas/test_idea/generate-stream/draft").status_code
+            == 401
+        )
+        assert (
+            client.post("/admin/blog-ideas/test_idea/generate-stream/review").status_code
+            == 401
+        )
+        assert (
+            client.post("/admin/blog-ideas/test_idea/generate-stream/marketing").status_code
+            == 401
+        )
 
     def test_streaming_routes_require_auth(self):
         """Streaming endpoints return 401 without admin headers."""

@@ -107,17 +107,6 @@ class TestBlogIdeaRepositoryUpdateFields:
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
-def _collect_route_paths(routes_list):
-    """Recursively collect all route paths, handling included sub-routers."""
-    paths = []
-    for r in routes_list:
-        if hasattr(r, "path"):
-            paths.append(r.path)
-        if hasattr(r, "routes"):
-            paths.extend(_collect_route_paths(r.routes))
-    return paths
-
-
 class TestE16LlmBackendSwitching:
     """Tests that main.py switches between Fake and LLM services correctly
     based on AI_LAB_LLM_OPENAI_API_KEY availability.
@@ -127,17 +116,18 @@ class TestE16LlmBackendSwitching:
     """
 
     def test_creates_fake_services_when_no_api_key(self, monkeypatch: pytest.MonkeyPatch):
-        """Without API key, all three E16 agents use Fake*Service."""
+        """Without API key, all three E16 routes respond 401 (exist but need auth)."""
         monkeypatch.delenv("AI_LAB_LLM_OPENAI_API_KEY", raising=False)
         monkeypatch.setenv("AI_LAB_LLM_ENVIRONMENT", "test")
+        from starlette.testclient import TestClient
+
         app = create_app()
+        client = TestClient(app)
 
-        routes = _collect_route_paths(app.routes)
-        assert "/admin/blog-posts/{post_id}/repurpose" in routes
-        assert "/admin/blog-posts/{post_id}/suggest-schedule" in routes
-        assert "/admin/blog-ideas/{idea_id}/optimize-seo" in routes
-
-        assert app is not None
+        # 401 = route exists but requires admin auth headers
+        assert client.post("/admin/blog-posts/test_id/repurpose").status_code == 401
+        assert client.post("/admin/blog-posts/test_id/suggest-schedule").status_code == 401
+        assert client.post("/admin/blog-ideas/test_id/optimize-seo").status_code == 401
 
     def test_creates_app_with_openai_backend(self, monkeypatch: pytest.MonkeyPatch):
         """With API key and default backend (openai), OpenAILLMService is used."""
