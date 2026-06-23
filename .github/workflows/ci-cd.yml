@@ -121,7 +121,7 @@ jobs:
       - name: Run backend tests
         working-directory: backend
         timeout-minutes: 15
-        run: pytest -q --tb=short -x
+        run: pytest -v --tb=short
         env:
           AI_LAB_DATABASE_URL: postgresql+psycopg://ai_lab_test:ai_lab_test_password@localhost:5432/ai_lab_portal_test
           AI_LAB_ENVIRONMENT: test
