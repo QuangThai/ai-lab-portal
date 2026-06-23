@@ -131,6 +131,30 @@ def test_list_limit() -> None:
     assert len(notifs) == 10
 
 
+def test_list_offset() -> None:
+    repo = InMemoryNotificationRepository()
+    for i in range(10):
+        repo.create(
+            user_id="user-1",
+            type="follow",
+            actor_user_id=f"actor-{i}",
+            resource_id=f"actor-{i}",
+            resource_type="user",
+        )
+    # First 5 (desc by created_at, but same timestamp so any order)
+    first_page = repo.list_for_user("user-1", limit=5, offset=0)
+    assert len(first_page) == 5
+    # Next 5 should be different from first
+    second_page = repo.list_for_user("user-1", limit=5, offset=5)
+    assert len(second_page) == 5
+    first_ids = {n.id for n in first_page}
+    second_ids = {n.id for n in second_page}
+    # No overlap between pages
+    assert first_ids.isdisjoint(second_ids)
+    # Total should be 10
+    assert len(first_ids | second_ids) == 10
+
+
 # --- API: notification routes ---
 
 def _make_app():

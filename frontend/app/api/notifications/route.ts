@@ -24,11 +24,18 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = request.nextUrl;
   const path = searchParams.get("path") ?? "";
+  const limit = searchParams.get("limit");
+  const offset = searchParams.get("offset");
 
   let backendPath = "/public/notifications";
   if (path) {
     backendPath += `/${path}`;
   }
+  const params = new URLSearchParams();
+  if (limit) params.set("limit", limit);
+  if (offset) params.set("offset", offset);
+  const qs = params.toString();
+  if (qs) backendPath += `?${qs}`;
 
   const userHeaders = getBackendHeaders(session);
 

@@ -96,10 +96,10 @@ class InMemoryNotificationRepository:
         self.items.append(notification)
         return notification
 
-    def list_for_user(self, user_id: str, limit: int = 20) -> list[NotificationSummary]:
+    def list_for_user(self, user_id: str, limit: int = 20, offset: int = 0) -> list[NotificationSummary]:
         user_notifs = [n for n in self.items if n.user_id == user_id]
         user_notifs.sort(key=lambda n: n.created_at, reverse=True)
-        return [_to_summary(n) for n in user_notifs[:limit]]
+        return [_to_summary(n) for n in user_notifs[offset:offset + limit]]
 
     def unread_count(self, user_id: str) -> int:
         return sum(1 for n in self.items if n.user_id == user_id and not n.read)
@@ -156,13 +156,14 @@ class PostgresNotificationRepository:
             connection.execute(insert(notifications_table).values(**notification.model_dump()))
         return notification
 
-    def list_for_user(self, user_id: str, limit: int = 20) -> list[NotificationSummary]:
+    def list_for_user(self, user_id: str, limit: int = 20, offset: int = 0) -> list[NotificationSummary]:
         with self.engine.begin() as connection:
             rows = (
                 connection.execute(
                     select(notifications_table)
                     .where(notifications_table.c.user_id == user_id)
                     .order_by(notifications_table.c.created_at.desc())
+                    .offset(offset)
                     .limit(limit)
                 )
                 .mappings()
@@ -254,8 +255,10 @@ def create_notification_routes(
     @router.get("")
     async def list_notifications(
         identity: SignedIdentity = Depends(require_user),
+        limit: int = 20,
+        offset: int = 0,
     ) -> list[NotificationSummary]:
-        return repo.list_for_user(identity.user_id)
+        return repo.list_for_user(identity.user_id, limit=limit, offset=offset)
 
     @router.get("/unread-count")
     async def unread_count(

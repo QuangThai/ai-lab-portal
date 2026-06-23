@@ -1,4 +1,29 @@
 {
-  "nextId": 31,
-  "tasks": []
+  "nextId": 33,
+  "tasks": [
+    {
+      "id": "31",
+      "subject": "Add pagination (offset) to notification backend API",
+      "description": "1. Add `offset` parameter to InMemoryNotificationRepository.list_for_user()\n2. Add `offset` parameter to PostgresNotificationRepository.list_for_user()\n3. Add `offset` query parameter to GET /public/notifications route\n4. Update frontend API proxy to pass offset\n5. Update tests",
+      "status": "in_progress",
+      "activeForm": "Adding pagination to notification API",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1782188314443,
+      "updatedAt": 1782188318605
+    },
+    {
+      "id": "32",
+      "subject": "Create dedicated /notifications page with tabs, filter, load-more",
+      "description": "Create a full notifications page at frontend/app/notifications/page.tsx with:\n1. Tabs: All | Unread\n2. Filter dropdown by type (follow, comment_reply, mention)\n3. Load more pagination\n4. Batch select + mark read\n5. Click navigation to resource\n6. Polished UI matching the notification bell design language\n7. Back button / navigation",
+      "status": "pending",
+      "activeForm": "Building notifications page",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1782188314445,
+      "updatedAt": 1782188314445
+    }
+  ]
 }
